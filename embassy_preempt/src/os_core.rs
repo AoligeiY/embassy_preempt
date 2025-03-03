@@ -241,7 +241,19 @@ pub extern "C" fn OSInit() {
 /// This function is used to notify uC/OS-II that you are about to service
 /// an interrupt service routine (ISR).  This allows uC/OS-II to keep track
 /// of interrupt nesting and thus only perform rescheduling at the last nested ISR.
-pub fn OSIntEnter() {}
+pub fn OSIntEnter() {
+    if OSRunning.load(Ordering::Acquire) {
+        let nesting = OSIntNesting.load(Ordering::Acquire);
+        if nesting < 255 {
+            let _ = OSIntNesting.compare_exchange(
+                nesting, 
+                nesting + 1,
+                Ordering::Release, 
+                Ordering::Relaxed,
+            ); 
+        }
+    }
+}
 
 /*
 *********************************************************************************************************
@@ -265,7 +277,53 @@ pub fn OSIntEnter() {}
 /// This function is used to notify uC/OS-II that you have completed servicing
 /// an ISR.  When the last nested ISR has completed, uC/OS-II will call the
 /// scheduler to determine whether a new, high-priority task, is ready to run.
-pub fn OSIntExit() {}
+pub unsafe fn OSIntExit() {
+    extern "Rust" {
+        fn restore_thread_task();
+    }
+
+    if OSRunning.load(Ordering::Acquire) {
+        critical_section::with(|_| {
+            let nesting = OSIntNesting.load(Ordering::Acquire);
+            if nesting > 0 {
+                let _ = OSIntNesting.compare_exchange(
+                    nesting, 
+                    nesting - 1,
+                    Ordering::Release, 
+                    Ordering::Relaxed,
+                ); 
+            }
+            if OSIntNesting.load(Ordering::Acquire) == 0 {
+                if OSLockNesting.load(Ordering::Acquire) == 0 {
+                 
+                        let executor = GlobalSyncExecutor.as_ref().unwrap();
+                        unsafe {
+                            executor.set_highrdy();
+
+                            if executor.OSPrioHighRdy.get() != executor.OSPrioCur.get() {
+                                #[cfg(feature = "OS_TASK_PROFILE_EN")]
+                                {
+                                    let mut _task = executor.OSTCBHighRdy.get();
+                                    _task.header().add_osctxwsctr();
+                                }
+
+                                let _ = OSCtxSwCtr.compare_exchange(
+                                    OSCtxSwCtr.load(Ordering::Acquire),
+                                    OSCtxSwCtr.load(Ordering::Acquire) + 1,
+                                    Ordering::Release,
+                                    Ordering::Relaxed,
+                                );
+
+                                restore_thread_task()
+                            }
+                        }
+                        
+                }
+            }
+        })
+        
+    }
+}
 
 /*
 *********************************************************************************************************

@@ -9,7 +9,7 @@ use core::{mem, ptr};
 
 use cortex_m::peripheral::NVIC;
 use critical_section::{CriticalSection, Mutex};
-#[cfg(feature = "defmt")]
+#[cfg(any(feature = "defmt",feature = "alarm_test"))]
 #[allow(unused_imports)]
 use defmt::{info,trace};
 use stm32_metapac::flash::vals::Latency;
@@ -256,6 +256,8 @@ impl RtcDriver {
         // let r = regs_gp16();
         // We only modify the period from the timer interrupt, so we know this can't race.
         let period = self.period.load(Ordering::Relaxed) + 1;
+        // #[cfg(feature = "alarm_test")]
+        // info!("RTC's period is {}", self.period.load(Ordering::Relaxed));
         self.period.store(period, Ordering::Relaxed);
         let t = (period as u64) << 15;
 
