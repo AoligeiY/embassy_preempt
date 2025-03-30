@@ -1,0 +1,39 @@
+[package]
+name = "STM32F4"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+embassy_preempt = {path = "../../embassy_preempt" , features = ["stm32f401re","defmt"]}
+cortex-m = { version = "0.7"}
+cortex-m-rt = {version = "0.7", features = ["device"]}
+
+defmt = {version = "0.3.0", optional = true}
+defmt-rtt = {version = "0.4", optional = true}
+panic-probe = { version = "0.3", features = ["print-defmt"], optional = true}
+
+
+[dev-dependencies]
+defmt-test = "0.3"
+
+# # cargo build/run
+# [profile.dev]
+# codegen-units = 1   # 控制代码生成单元的数量
+# debug = 0
+# debug-assertions = true     # 启用调试断言
+# incremental = false         # 禁用增量编译
+# opt-level = 2 
+# overflow-checks = true      # 启用整数溢出检查
+
+# # cargo build --release
+# [profile.release]
+# codegen-units = 1
+# debug = 0
+# opt-level = 3
+# lto = true      # 启用链接时优化
+
+[features]
+alarm_test = ["dep:defmt","panic-probe","defmt-rtt","embassy_preempt/alarm_test"]
+defmt = ["dep:defmt","panic-probe","defmt-rtt"]
+memory-x = ["embassy_preempt/memory-x"]     # If you have not added memory.x, you need to activate the feature
