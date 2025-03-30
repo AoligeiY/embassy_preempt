@@ -5,6 +5,7 @@ edition = "2021"
 repository = "https://github.com/KMSorSMS/embassy_preempt"
 license = "MIT OR Apache-2.0"
 
+
 [package]
 name = "embassy_preempt"
 version.workspace = true
@@ -22,17 +23,9 @@ harness = false
 # generate a static library and a rlib
 crate-type = ["rlib", "staticlib"]
 
-# needed for each integration test
-# [[test]]
-# name = "integration"
-# harness = false
 
 [workspace]
 members = []
-
-# [workspace.dependencies.ucosii-executor-macro]
-# version = "0.1.0"
-# path = "executor-macro"
 
 [workspace.dependencies]
 
@@ -43,25 +36,32 @@ cortex-m-rt = {version = "0.7", features = ["device"]}
 critical-section = { version = "1.1",features=["restore-state-bool"]}
 defmt = {version = "0.3", optional = true}
 defmt-rtt = {version = "0.4", optional = true}
+panic-probe = { version = "0.3", features = ["print-defmt"], optional = true}
 log = { version = "0.4.14", optional = true }
 spin = "0.5.2"
-# linked_list_allocator = "0.9.0"
+
 lazy_static = {version = "1.5.0", features = ["spin_no_std"]}
-panic-probe = { version = "0.3", features = ["print-defmt"], optional = true}
 cortex-m-semihosting = "0.5.0"
 stm32-metapac = { git = "https://github.com/embassy-rs/stm32-data-generated", tag = "stm32-data-e0cfd165fd8fffaa0df66a35eeca83b228496645", features = ["metadata"]}
-
-#stm32-metapac = { version = "15", default-features = false, features = ["metadata"]}
-# stm32-metapac = { git = "https://github.com/embassy-rs/stm32-data-generated", tag = "stm32-data-e0cfd165fd8fffaa0df66a35eeca83b228496645",  features = ["metadata", "stm32f401re"] }
 
 
 [dev-dependencies]
 defmt-test = "0.3"
 
+[dependencies.spinning_top]
+version = "0.2.5"
+optional = true
+
+[target.'cfg(loom)'.dependencies]
+loom = { version = "0.7", features = ["checkpoint"] }
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
+
+
 # cargo build/run
 [profile.dev]
 codegen-units = 1
-debug = 0
+debug = 1
 debug-assertions = true # <-
 incremental = false
 opt-level = 3         # <-
@@ -93,21 +93,32 @@ debug = 0  # 生成完整的调试信息
 opt-level = 3  # 优化级别 # <-
 # lto = true
 
-# futures = { version = "0.3.24", default-features = false, features = ["alloc", "async-await"] }
-# use lazy static to define global variables
-# lazy_static = "1.4.0"
 
-# this part only define features, don't decide whether the feature is active
 [features]
-# when a feature is set in default, it is active
-default = ["GPIOC","rt","use_spin","unstable-pac","time_driver_tim3","OS_STACK_LESS_THAN_64","cortex_m","OS_MEM_EN", "OS_PRIO_LESS_THAN_64", "OS_ARG_CHK_EN","OS_TIME_GET_SET_EN","OS_TASK_CREATE_EXT_EN","OS_TASK_REG_TBL_SIZE"]
-defmt = ["dep:defmt","panic-probe","defmt-rtt"]
+default = ["OS_SCHED_LOCK_EN","stm32f401re","GPIOC","rt","cortex_m","use_spin","unstable-pac","time_driver_tim3","OS_STACK_LESS_THAN_64","OS_MEM_EN", "OS_PRIO_LESS_THAN_64", "OS_ARG_CHK_EN","OS_TIME_GET_SET_EN","OS_TASK_CREATE_EXT_EN","OS_TASK_REG_TBL_SIZE","OS_TIME_DLY_HMSM_EN"]
 nightly = []
-# this feature will be set in build.rs
-OS_EVENT_EN = []
-# this feature will be set in build.rs
-OS_EVENT_NAME_EN = []
+defmt = ["dep:defmt","panic-probe","defmt-rtt"]
+alarm_test = ["dep:defmt","panic-probe","defmt-rtt"]
+
+cortex_m = []
+## Re-export stm32-metapac at `embassy_stm32::pac`.
+## This is unstable because semver-minor (non-breaking) releases of embassy-stm32 may major-bump (breaking) the stm32-metapac version.
+## If this is an issue for you, you're encouraged to directly depend on a fixed version of the PAC.
+## There are no plans to make this stable.
+unstable-pac = []
+use_spin = ["spinning_top"]     ## Abort the Linked_List_Allocator
+memory-x = ["stm32-metapac/memory-x"]       # Automatically generate `memory.x` file using [`stm32-metapac`](https://docs.rs/stm32-metapac/)
+rt = ["stm32-metapac/rt"]       ## Enable `stm32-metapac`'s `rt` feature
+low-power=[]
+delay_idle=[]
+GPIOC=[]
+GPIOA=[]
+
+OS_EVENT_EN = []        ## this feature will be set in build.rs
+OS_EVENT_NAME_EN = []       ## this feature will be set in build.rs
 OS_SCHED_LOCK_EN = []
+OS_TIME_DLY_HMSM_EN = []
+OS_TASK_CHANGE_PRIO_EN = []
 OS_TASK_DEL_EN = []
 OS_PRIO_LESS_THAN_64 = []
 OS_PRIO_LESS_THAN_256 = []
@@ -123,7 +134,7 @@ OS_TASK_CREATE_EXT_EN = []
 OS_TASK_PROFILE_EN = []
 OS_TASK_NAME_EN = []
 OS_SAFETY_CRITICAL = []
-OS_ARG_CHK_EN = []
+OS_ARG_CHK_EN = []      ## Enable (1) or Disable (0) argument checking
 OS_MAX_QS = []
 OS_TASK_REG_TBL_SIZE = []
 OS_TASK_STAT_STK_CHK_EN = []
@@ -135,14 +146,15 @@ OS_CPU_HOOKS_EN=[]
 OS_DEBUG_EN=[]
 OS_TIME_GET_SET_EN=[]
 OS_SAFETY_CRITICAL_IEC61508=[]
-cortex_m = []
 OS_STACK_LESS_THAN_64=[]
 OS_STACK_LESS_THAN_256=[]
 OS_EVENT_MULTI_EN=[]
-std = []
-host = []
-atomics = []                 # use hardware atomics from core::sync::atomic
-xip = []                     # enable optimizations for execute in place
+
+# std = []
+# host = []
+atomics = []                 ## use hardware atomics from core::sync::atomic
+# xip = []                     ## enable optimizations for execute in place
+
 time_driver_tim1=[]
 time_driver_tim2=[]
 time_driver_tim3=[]
@@ -157,29 +169,254 @@ time_driver_tim21=[]
 time_driver_tim22=[]
 time_driver_tim23=[]
 time_driver_tim24=[]
+
+
 stm32f401re = [ "stm32-metapac/stm32f401re" ]
-## Enable `stm32-metapac`'s `rt` feature
-rt = ["stm32-metapac/rt"]
-low-power=[]
-delay_idle=[]
-GPIOC=[]
-GPIOA=[]
-## Re-export stm32-metapac at `embassy_stm32::pac`.
-## This is unstable because semver-minor (non-breaking) releases of embassy-stm32 may major-bump (breaking) the stm32-metapac version.
-## If this is an issue for you, you're encouraged to directly depend on a fixed version of the PAC.
-## There are no plans to make this stable.
-unstable-pac = []
-use_spin = ["spinning_top"]
-## Automatically generate `memory.x` file using [`stm32-metapac`](https://docs.rs/stm32-metapac/)
-memory-x = ["stm32-metapac/memory-x"]
-alarm_test = ["dep:defmt","panic-probe","defmt-rtt"]
 
+stm32f030c6 = [ "stm32-metapac/stm32f030c6" ]
+stm32f030c8 = [ "stm32-metapac/stm32f030c8" ]
+stm32f030cc = [ "stm32-metapac/stm32f030cc" ]
+stm32f030f4 = [ "stm32-metapac/stm32f030f4" ]
+stm32f030k6 = [ "stm32-metapac/stm32f030k6" ]
+stm32f030r8 = [ "stm32-metapac/stm32f030r8" ]
+stm32f030rc = [ "stm32-metapac/stm32f030rc" ]
 
-[dependencies.spinning_top]
-version = "0.2.5"
-optional = true
-# unstable-pac=[]
-[target.'cfg(loom)'.dependencies]
-loom = { version = "0.7", features = ["checkpoint"] }
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
+stm32f051c4 = [ "stm32-metapac/stm32f051c4" ]
+stm32f051c6 = [ "stm32-metapac/stm32f051c6" ]
+stm32f051c8 = [ "stm32-metapac/stm32f051c8" ]
+stm32f051k4 = [ "stm32-metapac/stm32f051k4" ]
+stm32f051k6 = [ "stm32-metapac/stm32f051k6" ]
+stm32f051k8 = [ "stm32-metapac/stm32f051k8" ]
+stm32f051r4 = [ "stm32-metapac/stm32f051r4" ]
+stm32f051r6 = [ "stm32-metapac/stm32f051r6" ]
+stm32f051r8 = [ "stm32-metapac/stm32f051r8" ]
+stm32f051t8 = [ "stm32-metapac/stm32f051t8" ]
+
+stm32f103c4 = [ "stm32-metapac/stm32f103c4" ]
+stm32f103c6 = [ "stm32-metapac/stm32f103c6" ]
+stm32f103c8 = [ "stm32-metapac/stm32f103c8" ]
+stm32f103cb = [ "stm32-metapac/stm32f103cb" ]
+stm32f103r4 = [ "stm32-metapac/stm32f103r4" ]
+stm32f103r6 = [ "stm32-metapac/stm32f103r6" ]
+stm32f103r8 = [ "stm32-metapac/stm32f103r8" ]
+stm32f103rb = [ "stm32-metapac/stm32f103rb" ]
+stm32f103rc = [ "stm32-metapac/stm32f103rc" ]
+stm32f103rd = [ "stm32-metapac/stm32f103rd" ]
+stm32f103re = [ "stm32-metapac/stm32f103re" ]
+stm32f103rf = [ "stm32-metapac/stm32f103rf" ]
+stm32f103rg = [ "stm32-metapac/stm32f103rg" ]
+stm32f103t4 = [ "stm32-metapac/stm32f103t4" ]
+stm32f103t6 = [ "stm32-metapac/stm32f103t6" ]
+stm32f103t8 = [ "stm32-metapac/stm32f103t8" ]
+stm32f103tb = [ "stm32-metapac/stm32f103tb" ]
+stm32f103v8 = [ "stm32-metapac/stm32f103v8" ]
+stm32f103vb = [ "stm32-metapac/stm32f103vb" ]
+stm32f103vc = [ "stm32-metapac/stm32f103vc" ]
+stm32f103vd = [ "stm32-metapac/stm32f103vd" ]
+stm32f103ve = [ "stm32-metapac/stm32f103ve" ]
+stm32f103vf = [ "stm32-metapac/stm32f103vf" ]
+stm32f103vg = [ "stm32-metapac/stm32f103vg" ]
+stm32f103zc = [ "stm32-metapac/stm32f103zc" ]
+stm32f103zd = [ "stm32-metapac/stm32f103zd" ]
+stm32f103ze = [ "stm32-metapac/stm32f103ze" ]
+stm32f103zf = [ "stm32-metapac/stm32f103zf" ]
+stm32f103zg = [ "stm32-metapac/stm32f103zg" ]
+
+stm32f105r8 = [ "stm32-metapac/stm32f105r8" ]
+stm32f105rb = [ "stm32-metapac/stm32f105rb" ]
+stm32f105rc = [ "stm32-metapac/stm32f105rc" ]
+stm32f105v8 = [ "stm32-metapac/stm32f105v8" ]
+stm32f105vb = [ "stm32-metapac/stm32f105vb" ]
+stm32f105vc = [ "stm32-metapac/stm32f105vc" ]
+
+stm32f107rb = [ "stm32-metapac/stm32f107rb" ]
+stm32f107rc = [ "stm32-metapac/stm32f107rc" ]
+stm32f107vb = [ "stm32-metapac/stm32f107vb" ]
+stm32f107vc = [ "stm32-metapac/stm32f107vc" ]
+
+stm32f205rb = [ "stm32-metapac/stm32f205rb" ]
+stm32f205rc = [ "stm32-metapac/stm32f205rc" ]
+stm32f205re = [ "stm32-metapac/stm32f205re" ]
+stm32f205rf = [ "stm32-metapac/stm32f205rf" ]
+stm32f205rg = [ "stm32-metapac/stm32f205rg" ]
+stm32f205vb = [ "stm32-metapac/stm32f205vb" ]
+stm32f205vc = [ "stm32-metapac/stm32f205vc" ]
+stm32f205ve = [ "stm32-metapac/stm32f205ve" ]
+stm32f205vf = [ "stm32-metapac/stm32f205vf" ]
+stm32f205vg = [ "stm32-metapac/stm32f205vg" ]
+stm32f205zc = [ "stm32-metapac/stm32f205zc" ]
+stm32f205ze = [ "stm32-metapac/stm32f205ze" ]
+stm32f205zf = [ "stm32-metapac/stm32f205zf" ]
+stm32f205zg = [ "stm32-metapac/stm32f205zg" ]
+
+stm32f207ic = [ "stm32-metapac/stm32f207ic" ]
+stm32f207ie = [ "stm32-metapac/stm32f207ie" ]
+stm32f207if = [ "stm32-metapac/stm32f207if" ]
+stm32f207ig = [ "stm32-metapac/stm32f207ig" ]
+stm32f207vc = [ "stm32-metapac/stm32f207vc" ]
+stm32f207ve = [ "stm32-metapac/stm32f207ve" ]
+stm32f207vf = [ "stm32-metapac/stm32f207vf" ]
+stm32f207vg = [ "stm32-metapac/stm32f207vg" ]
+stm32f207zc = [ "stm32-metapac/stm32f207zc" ]
+stm32f207ze = [ "stm32-metapac/stm32f207ze" ]
+stm32f207zf = [ "stm32-metapac/stm32f207zf" ]
+stm32f207zg = [ "stm32-metapac/stm32f207zg" ]
+
+stm32f303c6 = [ "stm32-metapac/stm32f303c6" ]
+stm32f303c8 = [ "stm32-metapac/stm32f303c8" ]
+stm32f303cb = [ "stm32-metapac/stm32f303cb" ]
+stm32f303cc = [ "stm32-metapac/stm32f303cc" ]
+stm32f303k6 = [ "stm32-metapac/stm32f303k6" ]
+stm32f303k8 = [ "stm32-metapac/stm32f303k8" ]
+stm32f303r6 = [ "stm32-metapac/stm32f303r6" ]
+stm32f303r8 = [ "stm32-metapac/stm32f303r8" ]
+stm32f303rb = [ "stm32-metapac/stm32f303rb" ]
+stm32f303rc = [ "stm32-metapac/stm32f303rc" ]
+stm32f303rd = [ "stm32-metapac/stm32f303rd" ]
+stm32f303re = [ "stm32-metapac/stm32f303re" ]
+stm32f303vb = [ "stm32-metapac/stm32f303vb" ]
+stm32f303vc = [ "stm32-metapac/stm32f303vc" ]
+stm32f303vd = [ "stm32-metapac/stm32f303vd" ]
+stm32f303ve = [ "stm32-metapac/stm32f303ve" ]
+stm32f303zd = [ "stm32-metapac/stm32f303zd" ]
+stm32f303ze = [ "stm32-metapac/stm32f303ze" ]
+
+stm32f401cb = [ "stm32-metapac/stm32f401cb" ]
+stm32f401cc = [ "stm32-metapac/stm32f401cc" ]
+stm32f401cd = [ "stm32-metapac/stm32f401cd" ]
+stm32f401ce = [ "stm32-metapac/stm32f401ce" ]
+stm32f401rb = [ "stm32-metapac/stm32f401rb" ]
+stm32f401rc = [ "stm32-metapac/stm32f401rc" ]
+stm32f401rd = [ "stm32-metapac/stm32f401rd" ]
+# stm32f401re = [ "stm32-metapac/stm32f401re" ]
+stm32f401vb = [ "stm32-metapac/stm32f401vb" ]
+stm32f401vc = [ "stm32-metapac/stm32f401vc" ]
+stm32f401vd = [ "stm32-metapac/stm32f401vd" ]
+stm32f401ve = [ "stm32-metapac/stm32f401ve" ]
+
+stm32f407ie = [ "stm32-metapac/stm32f407ie" ]
+stm32f407ig = [ "stm32-metapac/stm32f407ig" ]
+stm32f407ve = [ "stm32-metapac/stm32f407ve" ]
+stm32f407vg = [ "stm32-metapac/stm32f407vg" ]
+stm32f407ze = [ "stm32-metapac/stm32f407ze" ]
+stm32f407zg = [ "stm32-metapac/stm32f407zg" ]
+
+stm32f429ag = [ "stm32-metapac/stm32f429ag" ]
+stm32f429ai = [ "stm32-metapac/stm32f429ai" ]
+stm32f429be = [ "stm32-metapac/stm32f429be" ]
+stm32f429bg = [ "stm32-metapac/stm32f429bg" ]
+stm32f429bi = [ "stm32-metapac/stm32f429bi" ]
+stm32f429ie = [ "stm32-metapac/stm32f429ie" ]
+stm32f429ig = [ "stm32-metapac/stm32f429ig" ]
+stm32f429ii = [ "stm32-metapac/stm32f429ii" ]
+stm32f429ne = [ "stm32-metapac/stm32f429ne" ]
+stm32f429ng = [ "stm32-metapac/stm32f429ng" ]
+stm32f429ni = [ "stm32-metapac/stm32f429ni" ]
+stm32f429ve = [ "stm32-metapac/stm32f429ve" ]
+stm32f429vg = [ "stm32-metapac/stm32f429vg" ]
+stm32f429vi = [ "stm32-metapac/stm32f429vi" ]
+stm32f429ze = [ "stm32-metapac/stm32f429ze" ]
+stm32f429zg = [ "stm32-metapac/stm32f429zg" ]
+stm32f429zi = [ "stm32-metapac/stm32f429zi" ]
+
+# BEGIN TICKS
+## 1Hz Tick Rate
+tick-hz-1 = []
+## 2Hz Tick Rate
+tick-hz-2 = []
+## 4Hz Tick Rate
+tick-hz-4 = []
+## 8Hz Tick Rate
+tick-hz-8 = []
+## 10Hz Tick Rate
+tick-hz-10 = []
+## 16Hz Tick Rate
+tick-hz-16 = []
+## 32Hz Tick Rate
+tick-hz-32 = []
+## 64Hz Tick Rate
+tick-hz-64 = []
+## 100Hz Tick Rate
+tick-hz-100 = []
+## 128Hz Tick Rate
+tick-hz-128 = []
+## 256Hz Tick Rate
+tick-hz-256 = []
+## 512Hz Tick Rate
+tick-hz-512 = []
+## 1.0kHz Tick Rate
+tick-hz-1_000 = []
+## 1.024kHz Tick Rate
+tick-hz-1_024 = []
+## 2.0kHz Tick Rate
+tick-hz-2_000 = []
+## 2.048kHz Tick Rate
+tick-hz-2_048 = []
+## 4.0kHz Tick Rate
+tick-hz-4_000 = []
+## 4.096kHz Tick Rate
+tick-hz-4_096 = []
+## 8.0kHz Tick Rate
+tick-hz-8_000 = []
+## 8.192kHz Tick Rate
+tick-hz-8_192 = []
+## 10.0kHz Tick Rate
+tick-hz-10_000 = []
+## 16.0kHz Tick Rate
+tick-hz-16_000 = []
+## 16.384kHz Tick Rate
+tick-hz-16_384 = []
+## 20.0kHz Tick Rate
+tick-hz-20_000 = []
+## 32.0kHz Tick Rate
+tick-hz-32_000 = []
+## 32.768kHz Tick Rate
+tick-hz-32_768 = []
+## 40.0kHz Tick Rate
+tick-hz-40_000 = []
+## 64.0kHz Tick Rate
+tick-hz-64_000 = []
+## 65.536kHz Tick Rate
+tick-hz-65_536 = []
+## 80.0kHz Tick Rate
+tick-hz-80_000 = []
+## 100.0kHz Tick Rate
+tick-hz-100_000 = []
+## 128.0kHz Tick Rate
+tick-hz-128_000 = []
+## 131.072kHz Tick Rate
+tick-hz-131_072 = []
+## 160.0kHz Tick Rate
+tick-hz-160_000 = []
+## 256.0kHz Tick Rate
+tick-hz-256_000 = []
+## 262.144kHz Tick Rate
+tick-hz-262_144 = []
+## 320.0kHz Tick Rate
+tick-hz-320_000 = []
+## 512.0kHz Tick Rate
+tick-hz-512_000 = []
+## 524.288kHz Tick Rate
+tick-hz-524_288 = []
+## 640.0kHz Tick Rate
+tick-hz-640_000 = []
+## 1.0MHz Tick Rate
+tick-hz-1_000_000 = []
+## 1.024MHz Tick Rate
+tick-hz-1_024_000 = []
+## 1.048576MHz Tick Rate
+tick-hz-1_048_576 = []
+## 1.28MHz Tick Rate
+tick-hz-1_280_000 = []
+## 2.0MHz Tick Rate
+tick-hz-2_000_000 = []
+## 2.048MHz Tick Rate
+tick-hz-2_048_000 = []
+## 2.097152MHz Tick Rate
+tick-hz-2_097_152 = []
+## 2.56MHz Tick Rate
+tick-hz-2_560_000 = []
+## 3.0MHz Tick Rate
+tick-hz-3_000_000 = []
+## 4.0MHz Tick Rate
+tick-hz-4_000_000 = []

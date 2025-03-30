@@ -17,7 +17,7 @@ use stm32_metapac::rcc::vals::*;
 use stm32_metapac::timer::{regs, vals};
 use stm32_metapac::{Interrupt, FLASH, RCC};
 
-use crate::cfg::{APB_HZ, TICK_HZ};
+use crate::cfg::{APB_HZ, TICK_HZ, SYSCLK_HZ};
 use crate::executor::waker;
 use crate::port::{BOOLEAN, INT16U, INT32U, INT64U, INT8U, TIMER, USIZE};
 
@@ -160,10 +160,12 @@ impl RtcDriver {
     pub(crate) fn init(&'static self) {
         #[cfg(feature = "defmt")]
         trace!("init of RtcDriver");
-        // rcc config
+        // rcc config（need to configure RCC according to your own chip）
         rcc_init();
         // enable the Timer Driver
         enable_Timer();
+
+        Get_APBFreq();
 
         // disable the Timer
         TIMER.cr1().modify(|w| w.set_cen(false));
@@ -171,7 +173,7 @@ impl RtcDriver {
         TIMER.cnt().write(|w| w.set_cnt(0));
 
         // calculate the psc
-        let psc = (APB_HZ / TICK_HZ) as INT32U - 1;
+        let psc = (*APB_HZ.get() / TICK_HZ) as INT32U - 1;
         let psc: INT16U = match psc.try_into() {
             Err(_) => panic!("psc division overflow: {}", psc),
             Ok(n) => n,
@@ -474,10 +476,49 @@ fn rcc_init() {
 }
 
 fn enable_Timer() {
-    #[cfg(feature = "time_driver_tim3")]
+    
+    #[cfg(feature = "time_driver_tim1")]
+    RCC.apb2enr().modify(|v| v.set_tim1en(ENABLE));
+    #[cfg(feature = "time_driver_tim2")]
+    RCC.apb1enr().modify(|v| v.set_tim2en(ENABLE));
+
     // by noah: in current project, we use Timer 3 as the time driver
+    #[cfg(feature = "time_driver_tim3")]
     RCC.apb1enr().modify(|v| v.set_tim3en(ENABLE));
-    #[cfg(not(feature = "time_driver_tim3"))]
+
+    #[cfg(feature = "time_driver_tim4")]
+    RCC.apb1enr().modify(|v| v.set_tim4en(ENABLE));
+    #[cfg(feature = "time_driver_tim5")]
+    RCC.apb1enr().modify(|v| v.set_tim5en(ENABLE));
+    #[cfg(feature = "time_driver_tim8")]
+    RCC.apb2enr().modify(|v| v.set_tim8en(ENABLE));
+    #[cfg(feature = "time_driver_tim9")]
+    RCC.apb2enr().modify(|v| v.set_tim9en(ENABLE));
+    #[cfg(feature = "time_driver_tim12")]
+    RCC.apb1enr().modify(|v| v.set_tim12en(ENABLE));
+
+    // #[cfg(feature = "time_driver_tim15")]
+    // RCC.apb2enr().modify(|v| v.set_tim15en(ENABLE));
+    // #[cfg(feature = "time_driver_tim20")]
+    
+    // #[cfg(feature = "time_driver_tim21")]
+    
+    // #[cfg(feature = "time_driver_tim22")]
+    
+    // #[cfg(feature = "time_driver_tim23")]
+    
+    // #[cfg(feature = "time_driver_tim24")]
+
+    #[cfg(not(any(
+        feature = "time_driver_tim1", 
+        feature = "time_driver_tim2", 
+        feature = "time_driver_tim3", 
+        feature = "time_driver_tim4", 
+        feature = "time_driver_tim5", 
+        feature = "time_driver_tim8", 
+        feature = "time_driver_tim9", 
+        feature = "time_driver_tim12", 
+    )))]
     panic!("the Timer is not surpport. You can add it in Func enable_Timer()");
 }
 
@@ -497,4 +538,41 @@ pub fn _embassy_time_schedule_wake(at: u64, waker: &core::task::Waker) {
         let expires_at = task.expires_at.get();
         task.expires_at.set(expires_at.min(at));
     }
+}
+
+/// Get the frequency of the APB bus
+pub fn Get_APBFreq() {
+    let SYSCLK = match RCC.cfgr().read().sw() {
+        Sw::HSI => 16_000_000, 
+        Sw::HSE => 8_000_000, 
+        Sw::PLL1_P => {
+            let pllm = RCC.pllcfgr().read().pllm().to_bits() as u32;
+            let plln = RCC.pllcfgr().read().plln().0 as u32;
+            let pllp = 2 * (RCC.pllcfgr().read().pllp() as u32 + 1);
+            let vco_input;
+            if RCC.cr().read().hseon() && RCC.cr().read().hserdy() {
+                vco_input = 8_000_000 / pllm;
+            }else{
+                vco_input = 16_000_000 / pllm;
+            }
+            let vco_output = vco_input * plln;
+            vco_output / pllp
+        }
+        _ => 16_000_000, 
+    };
+    SYSCLK_HZ.set(SYSCLK as u64);
+
+    let AHB_PSC = match RCC.cfgr().read().hpre().to_bits() {
+        0b0000 => 1,
+        0b1000 => 2,
+        0b1001 => 4,
+        0b1010 => 8,
+        0b1011 => 16,
+        0b1100 => 64,
+        0b1101 => 128,
+        0b1110 => 256,
+        0b1111 => 512,
+        _ => 1,
+    };
+    APB_HZ.set((SYSCLK / AHB_PSC) as u64);
 }

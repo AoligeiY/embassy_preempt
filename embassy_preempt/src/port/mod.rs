@@ -4,7 +4,7 @@ use cortex_m::peripheral::scb::SystemHandler;
 use cortex_m::peripheral::{NVIC, SCB, SYST, syst};
 use stm32_metapac::timer::TimGp16;
 // #[cfg(feature = "defmt")]
-#[cfg(feature = "alarm_test")]
+#[cfg(any(feature = "alarm_test", feature = "defmt"))]
 #[allow(unused_imports)]
 use defmt::{info,trace};
 
@@ -133,7 +133,40 @@ pub fn init_core_peripherals() {
         // set the TIM3 prio as 3
         #[cfg(feature = "defmt")]
         info!("the prio of TIM3 is {}",NVIC::get_priority(stm32_metapac::Interrupt::TIM3));
+
+        #[cfg(feature = "time_driver_tim1")]{
+            p.NVIC.set_priority(stm32_metapac::Interrupt::TIM1_CC, 32);
+            p.NVIC.set_priority(stm32_metapac::Interrupt::TIM1_UP_TIM10, 32);
+        }
+        #[cfg(feature = "time_driver_tim2")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM2, 32);
+        #[cfg(feature = "time_driver_tim3")]
         p.NVIC.set_priority(stm32_metapac::Interrupt::TIM3, 32);
+        #[cfg(feature = "time_driver_tim4")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM4, 32);
+        #[cfg(feature = "time_driver_tim5")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM5, 32);
+        #[cfg(feature = "time_driver_tim8")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM8, 32);
+        #[cfg(feature = "time_driver_tim9")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM9, 32);
+        #[cfg(feature = "time_driver_tim12")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM12, 32);
+        #[cfg(feature = "time_driver_tim15")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM15, 32);
+        #[cfg(feature = "time_driver_tim20")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM20, 32);
+        #[cfg(feature = "time_driver_tim21")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM21, 32);
+        #[cfg(feature = "time_driver_tim22")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM22, 32);
+        #[cfg(feature = "time_driver_tim23")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM23, 32);
+        #[cfg(feature = "time_driver_tim24")]
+        p.NVIC.set_priority(stm32_metapac::Interrupt::TIM24, 32);
+
+        
+
         #[cfg(feature = "defmt")]
         info!("the prio of TIM3 is {}",NVIC::get_priority(stm32_metapac::Interrupt::TIM3));
 

@@ -1,5 +1,9 @@
 use crate::port::*;
 use crate::ucosii::OS_PRIO;
+use crate::sync::UPSafeCell;
+
+mod tick;
+
 // TODO: Make all the config to be feature!!!
 
 /// the const val define the lowest prio
@@ -13,11 +17,25 @@ pub const OS_MAX_MEM_PART: USIZE = 5;
 /// This const val is used to config the size of ARENA.
 /// You can set it refer to the number of tasks in your application(OS_MAX_TASKS) and the number of system tasks(OS_N_SYS_TASKS).
 pub const OS_ARENA_SIZE: USIZE = 10240;
-/// output frequency of the Timer. frequency of the Systick(run on Timer)
-/// one tick is 10us
-pub const TICK_HZ: INT64U = 100_000;
-/// input frequency of the Timer, you should config it yourself(set the Hardware)
-pub const APB_HZ: INT64U = 84000000;
+/// Ticks per second of the global timebase. Output frequency of the Timer. Frequency of the Systick(run on Timer)
+/// the default one tick is 10us
+/// 
+///
+/// This value is specified by the Cargo features "`tick-hz-*`"
+pub const TICK_HZ: INT64U = tick::TICK_HZ;
+
+lazy_static::lazy_static! {
+    /// input frequency of the Timer, you should config it yourself(set the Hardware)
+    pub static ref APB_HZ: UPSafeCell<INT64U> = unsafe {
+        UPSafeCell::new(0)
+    };
+    /// the system clock frequency, you should config it yourself(set the Hardware)
+    pub static ref SYSCLK_HZ: UPSafeCell<INT64U> = unsafe {
+        UPSafeCell::new(0)
+    };
+}
+
+
 /// the block delay of idle task in poll
 #[cfg(feature = "delay_idle")]
 pub const block_delay_poll: usize = 2;
