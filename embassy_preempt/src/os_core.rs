@@ -46,14 +46,17 @@ use defmt::trace;
 // use core::cell::RefCell;
 use os_cpu::*;
 
+use crate::heap::Init_Heap;
 use crate::executor::GlobalSyncExecutor;
-use crate::heap::stack_allocator::init_stack_allocator;
+use crate::heap::stack_allocator::OS_InitStackAllocator;
 use crate::os_task::SyncOSTaskCreate;
 #[cfg(feature = "alarm_test")]
 use crate::os_time::blockdelay;
 use crate::os_time::OSTimerInit;
 // use crate::os_q::OS_QInit;
 use crate::port::*;
+#[cfg(feature = "OS_TASK_NAME_EN")]
+use crate::os_task::OSTaskNameSet;
 #[cfg(feature = "OS_TASK_REG_TBL_SIZE")]
 use crate::ucosii::OSTaskRegNextAvailID;
 use crate::ucosii::{
@@ -206,7 +209,9 @@ pub extern "C" fn OSInit() {
 
     OS_InitTaskIdle(); /* Create the Idle Task                     */
     // by liam: we need to init the stack allocator
-    init_stack_allocator();
+    OS_InitStackAllocator();
+    // init the heap to use String and Vec
+    Init_Heap();
     // by noah：we need to init the Timer as the time driver
     OSTimerInit();
     // by noah: *TEST*
@@ -242,15 +247,11 @@ pub extern "C" fn OSInit() {
 /// an interrupt service routine (ISR).  This allows uC/OS-II to keep track
 /// of interrupt nesting and thus only perform rescheduling at the last nested ISR.
 pub fn OSIntEnter() {
+    #[cfg(feature = "defmt")]
+    trace!("OSIntEnter");
     if OSRunning.load(Ordering::Acquire) {
-        let nesting = OSIntNesting.load(Ordering::Acquire);
-        if nesting < 255 {
-            let _ = OSIntNesting.compare_exchange(
-                nesting, 
-                nesting + 1,
-                Ordering::Release, 
-                Ordering::Relaxed,
-            ); 
+        if OSIntNesting.load(Ordering::Acquire) < 255 {
+            OSIntNesting.fetch_add(1, Ordering::SeqCst);
         }
     }
 }
@@ -278,46 +279,16 @@ pub fn OSIntEnter() {
 /// an ISR.  When the last nested ISR has completed, uC/OS-II will call the
 /// scheduler to determine whether a new, high-priority task, is ready to run.
 pub unsafe fn OSIntExit() {
-    extern "Rust" {
-        fn restore_thread_task();
-    }
-
+    #[cfg(feature = "defmt")]
+    trace!("OSIntExit");
     if OSRunning.load(Ordering::Acquire) {
         critical_section::with(|_| {
-            let nesting = OSIntNesting.load(Ordering::Acquire);
-            if nesting > 0 {
-                let _ = OSIntNesting.compare_exchange(
-                    nesting, 
-                    nesting - 1,
-                    Ordering::Release, 
-                    Ordering::Relaxed,
-                ); 
+            if OSIntNesting.load(Ordering::Acquire) > 0 {
+                OSIntNesting.fetch_sub(1, Ordering::SeqCst);
             }
             if OSIntNesting.load(Ordering::Acquire) == 0 {
                 if OSLockNesting.load(Ordering::Acquire) == 0 {
-                 
-                        let executor = GlobalSyncExecutor.as_ref().unwrap();
-                        unsafe {
-                            executor.set_highrdy();
-
-                            if executor.OSPrioHighRdy.get() != executor.OSPrioCur.get() {
-                                #[cfg(feature = "OS_TASK_PROFILE_EN")]
-                                {
-                                    let mut _task = executor.OSTCBHighRdy.get();
-                                    _task.header().add_osctxwsctr();
-                                }
-
-                                let _ = OSCtxSwCtr.compare_exchange(
-                                    OSCtxSwCtr.load(Ordering::Acquire),
-                                    OSCtxSwCtr.load(Ordering::Acquire) + 1,
-                                    Ordering::Release,
-                                    Ordering::Relaxed,
-                                );
-
-                                restore_thread_task()
-                            }
-                        }
-                        
+                    unsafe { GlobalSyncExecutor.as_ref().unwrap().IntCtxSW() };
                 }
             }
         })
@@ -345,7 +316,19 @@ pub unsafe fn OSIntExit() {
 /// This allows your application to prevent context switches until
 /// you are ready to permit context switching.
 #[cfg(feature = "OS_SCHED_LOCK_EN")]
-pub fn OSSchedLock() {}
+pub fn OSSchedLock() {
+    #[cfg(feature = "defmt")]
+    trace!("OSSchedLock");
+    if OSRunning.load(Ordering::Acquire) {
+        critical_section::with(|_| {
+            if OSIntNesting.load(Ordering::Acquire) == 0 {
+                if OSLockNesting.load(Ordering::Acquire) < 255 {
+                    OSLockNesting.fetch_add(1, Ordering::SeqCst);
+                }
+            }
+        })
+    }
+}
 
 /*
 *********************************************************************************************************
@@ -364,7 +347,25 @@ pub fn OSSchedLock() {}
 
 /// This function is used to re-allow rescheduling.
 #[cfg(feature = "OS_SCHED_LOCK_EN")]
-pub fn OSSchedUnlock() {}
+pub fn OSSchedUnlock() {
+    #[cfg(feature = "defmt")]
+    trace!("OSSchedUnlock");
+    if OSRunning.load(Ordering::Acquire) {
+
+        critical_section::with(|_| {
+            if OSIntNesting.load(Ordering::Acquire) == 0 {
+                if OSLockNesting.load(Ordering::Acquire) > 0 {
+                    OSLockNesting.fetch_sub(1, Ordering::SeqCst);
+
+                    if OSLockNesting.load(Ordering::Acquire) == 0 {
+                        unsafe { GlobalSyncExecutor.as_ref().unwrap().IntCtxSW() };
+                    }
+                }
+            }
+        })
+        
+    }
+}
 
 /*
 *********************************************************************************************************
@@ -694,6 +695,7 @@ fn OS_InitTaskIdle() {
                 trace!("task idle");
                 blockdelay::delay(1);
             }
+            OSIdleCtr.fetch_add(1, Ordering::SeqCst);
             unsafe {
                 run_idle();
             }
@@ -702,6 +704,11 @@ fn OS_InitTaskIdle() {
     #[cfg(feature = "defmt")]
     trace!("create idle task");
     SyncOSTaskCreate(idle_fn, 0 as *mut c_void, 0 as *mut usize, OS_TASK_IDLE_PRIO);
+    #[cfg(feature = "OS_TASK_NAME_EN")]
+    {
+        OSTaskNameSet(OS_TASK_IDLE_PRIO, "embassy-preempt Idle Task");
+    }
+
 }
 
 /*
@@ -717,6 +724,7 @@ fn OS_InitTaskIdle() {
 *********************************************************************************************************
 */
 
+// we no longer init TCB list 
 #[allow(unused)]
 fn OS_InitTCBList() {
     //
@@ -743,7 +751,13 @@ fn OS_InitTCBList() {
 */
 
 /// This function is called by other uC/OS-II services to clear a contiguous block of RAM.
-pub fn OS_MemClr() {}
+pub fn OS_MemClr(pdest: *mut u8, size: usize) {
+    unsafe {
+        for i in 0..size {
+            *pdest.add(i) = 0;
+        }
+    }
+}
 
 /*
 *********************************************************************************************************
@@ -771,7 +785,13 @@ pub fn OS_MemClr() {}
 
 /// This function is called by other uC/OS-II services to copy a block of
 /// memory from one location to another.
-pub fn OS_MemCopy() {}
+pub fn OS_MemCopy(pdest: *mut u8, psrc: *mut u8, size: usize) {
+    unsafe {
+        for i in 0..size {
+            *pdest.add(i) = *psrc.add(i);
+        }
+    }
+}
 
 /*
 *********************************************************************************************************
@@ -811,6 +831,7 @@ pub fn OS_Sched() {}
 *********************************************************************************************************
 */
 
+// this function has been implemented in the method set_highrdy of the executor
 #[allow(unused)]
 fn OS_SchedNew() {}
 
@@ -832,7 +853,7 @@ fn OS_SchedNew() {}
 
 /// This function is called by other uC/OS-II services to determine the size of an ASCII string (excluding the NUL character)
 pub fn OS_StrLen(_psrc: &str) -> INT8U {
-    return 0;
+    return _psrc.len() as INT8U;
 }
 
 /*
@@ -875,45 +896,3 @@ fn OS_TaskIdle() {}
 #[cfg(all(feature = "OS_TASK_STAT_STK_CHK_EN", feature = "OS_TASK_CREATE_EXT_EN"))]
 pub fn OS_TaskStatStkChk() {}
 
-/*
-*********************************************************************************************************
-*                                           INITIALIZE TCB
-*
-* Description: This function is internal to uC/OS-II and is used to initialize a Task Control Block when
-*              a task is created (see OSTaskCreate() and OSTaskCreateExt()).
-*
-* Arguments  : prio          is the priority of the task being created
-*
-*              ptos          is a pointer to the task's top-of-stack assuming that the CPU registers
-*                            have been placed on the stack.  Note that the top-of-stack corresponds to a
-*                            'high' memory location is OS_STK_GROWTH is set to 1 and a 'low' memory
-*                            location if OS_STK_GROWTH is set to 0.  Note that stack growth is CPU
-*                            specific.
-*
-*              pbos          is a pointer to the bottom of stack.  A NULL pointer is passed if called by
-*                            'OSTaskCreate()'.
-*
-*              id            is the task's ID (0..65535)
-*
-*              stk_size      is the size of the stack (in 'stack units').  If the stack units are INT8Us
-*                            then, 'stk_size' contains the number of bytes for the stack.  If the stack
-*                            units are INT32Us then, the stack contains '4 * stk_size' bytes.  The stack
-*                            units are established by the #define constant OS_STK which is CPU
-*                            specific.  'stk_size' is 0 if called by 'OSTaskCreate()'.
-*
-*              pext          is a pointer to a user supplied memory area that is used to extend the task
-*                            control block.  This allows you to store the contents of floating-point
-*                            registers, MMU registers or anything else you could find useful during a
-*                            context switch.  You can even assign a name to each task and store this name
-*                            in this TCB extension.  A NULL pointer is passed if called by OSTaskCreate().
-*
-*              opt           options as passed to 'OSTaskCreateExt()' or,
-*                            0 if called from 'OSTaskCreate()'.
-*
-* Returns    : OS_ERR_NONE              if the call was successful
-*              OS_ERR_TASK_NO_MORE_TCB  if there are no more free TCBs to be allocated and thus, the task
-*                                       cannot be created.
-*
-* Note       : This function is INTERNAL to uC/OS-II and your application should not call it.
-*********************************************************************************************************
-*/

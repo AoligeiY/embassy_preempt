@@ -5,8 +5,8 @@ use core::mem;
 use core::ptr::NonNull;
 
 use cortex_m_rt::exception;
-// #[cfg(feature = "alarm_test")]
-// use defmt::trace;
+#[cfg(feature = "alarm_test")]
+use defmt::{trace, info};
 #[cfg(feature = "defmt")]
 #[allow(unused_imports)]
 use defmt::{info, trace};
@@ -15,6 +15,7 @@ use super::OS_STK;
 use crate::app::led::{stack_pin_high, stack_pin_low};
 use crate::executor::GlobalSyncExecutor;
 use crate::heap::stack_allocator::{INTERRUPT_STACK, PROGRAM_STACK};
+use crate::ucosii::OSCtxSwCtr;
 // use crate::ucosii::OS_TASK_IDLE_PRIO;
 
 // use crate::ucosii::OSIdleCtr;
@@ -83,12 +84,28 @@ fn PendSV() {
             )
         }
     }
+    #[cfg(feature = "OS_TASK_PROFILE_EN")]
+    {
+        // add the task's context switch counter
+        global_executor.add_ctx_sw_ctr();
+    }
+    // add global context switch counter
+    OSCtxSwCtr.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+    #[cfg(feature = "defmt")]
+    info!("OSCtxSwCtr is {}", OSCtxSwCtr.load(core::sync::atomic::Ordering::SeqCst));
+
     let stk_ptr: crate::heap::stack_allocator::OS_STK_REF = global_executor.OSTCBHighRdy.get_mut().take_stk();
     let stk_heap_ref = stk_ptr.HEAP_REF;
     let program_stk_ptr = stk_ptr.STK_REF.as_ptr();
+    // #[cfg(feature = "alarm_test")]
+    // info!("the new stack pointer is {:?}, program stack is {:?}", program_stk_ptr, PROGRAM_STACK.exclusive_access().STK_REF.as_ptr());
     // the swap will return the ownership of PROGRAM_STACK's original value and set the new value(check it when debuging!!!)
     let mut old_stk = PROGRAM_STACK.swap(stk_ptr);
+    
+    // #[cfg(feature = "alarm_test")]
+    // info!("the new stack pointer is {:?}, program stack is {:?}", old_stk.STK_REF.as_ptr(), PROGRAM_STACK.exclusive_access().STK_REF.as_ptr());
     let tcb_cur = global_executor.OSTCBCur.get_mut();
+
     // by noah: *TEST*
     // let TCB: &OS_TCB;
     if !*tcb_cur.is_in_thread_poll.get_unmut() {
@@ -107,13 +124,17 @@ fn PendSV() {
         }
         // then as we have stored the context, we need to update the old_stk's top
         old_stk.STK_REF = NonNull::new(old_stk_ptr as *mut OS_STK).unwrap();
-        #[cfg(feature = "defmt")]
+        #[cfg(feature = "alarm_test")]
         info!("in pendsv, the old stk ptr is {:?}", old_stk_ptr);
         tcb_cur.set_stk(old_stk);
     } else if old_stk.HEAP_REF != stk_heap_ref {
         // the situation is in poll
+        // #[cfg(feature = "alarm_test")]
+        // info!("drop the old stack");
         drop(old_stk);
     } else {
+        // #[cfg(feature = "alarm_test")]
+        // info!("mem::forget the old stack");
         mem::forget(old_stk);
     }
     // set the current task to be the highrdy

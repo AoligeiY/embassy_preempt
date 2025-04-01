@@ -45,9 +45,11 @@ use crate::port::*;
 */
 
 #[allow(unused)]
-const OS_PRIO_SELF: INT32U = 0xFF; /* Indicate SELF priority                      */
+/// Indicate SELF priority
+pub const OS_PRIO_SELF: INT32U = 0xFF;
 #[allow(unused)]
-const OS_PRIO_MUTEX_CEIL_DIS: INT32U = 0xFF; /* Disable mutex priority ceiling promotion    */
+/// Disable mutex priority ceiling promotion
+const OS_PRIO_MUTEX_CEIL_DIS: INT32U = 0xFF;
 
 // by noah：For there is no Task Idle, so the OS_N_SYS_TASKS is set as 0 or 1(when OS_TASK_STAT_EN)
 #[cfg(feature = "OS_TASK_STAT_EN")]
@@ -756,20 +758,20 @@ pub static OSTaskRegNextAvailID: AtomicU8 = AtomicU8::new(0);
 /// besides, we use the RefCell to do borrowing check at run time
 pub static OSRdyTbl: Mutex<RefCell<[OS_PRIO; OS_RDY_TBL_SIZE]>> = Mutex::new(RefCell::new([0; OS_RDY_TBL_SIZE]));
 
-/// by noah: the ref of Table of TCBs. TCBs will be stored in Arena in executor.rs
+// /// by noah: the ref of Table of TCBs. TCBs will be stored in Arena in executor.rs
 // pub static OSTCBTbl:TaskPoolRef=TaskPoolRef::new();
 
 // Priority of current task
 // fix by liam: we change this to executor
 // pub static OSPrioCur: AtomicU8 = AtomicU8::new(0);
 
-/// Priority of highest priority task
-pub static OSPrioHighRdy: AtomicU8 = AtomicU8::new(0);
+// /// Priority of highest priority task
+// pub static OSPrioHighRdy: AtomicU8 = AtomicU8::new(0);
 
-lazy_static! {
-/// we need the lazy static so that we can call default to get the default value
-    /// Pointer to currently running TCB
-    pub static ref OSTCBCur:Mutex<RefCell<OS_TCB_REF>>=Mutex::new(RefCell::new(OS_TCB_REF::default()));
-    /// Pointer to highest priority TCB R-to-R
-    pub static ref OSTCBHighRdy:Mutex<RefCell<OS_TCB_REF>>=Mutex::new(RefCell::new(OS_TCB_REF::default()));
-}
+// lazy_static! {
+// /// we need the lazy static so that we can call default to get the default value
+//     /// Pointer to currently running TCB
+//     pub static ref OSTCBCur:Mutex<RefCell<OS_TCB_REF>>=Mutex::new(RefCell::new(OS_TCB_REF::default()));
+//     /// Pointer to highest priority TCB R-to-R
+//     pub static ref OSTCBHighRdy:Mutex<RefCell<OS_TCB_REF>>=Mutex::new(RefCell::new(OS_TCB_REF::default()));
+// }

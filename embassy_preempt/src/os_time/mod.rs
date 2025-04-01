@@ -1,10 +1,13 @@
 #[cfg(feature = "defmt")]
 #[allow(unused_imports)]
 use defmt::{info, trace};
+use core::sync::atomic::Ordering;
 
 use crate::executor::{wake_task_no_pend, GlobalSyncExecutor};
 use crate::port::time_driver::{Driver, RTC_DRIVER};
-use crate::port::INT64U;
+use crate::port::{INT64U, INT8U};
+use crate::cfg::TICK_HZ;
+use crate::ucosii::{OSIntNesting, OSLockNesting, OS_ERR_STATE};
 /// the mod of blockdelay of uC/OS-II kernel
 pub mod blockdelay;
 /// the mod of duration of uC/OS-II kernel
@@ -20,15 +23,93 @@ pub fn OSTimerInit() {
     trace!("OSTimerInit");
     RTC_DRIVER.init();
 }
+
+
 /// we have to make this delay acting like preemptive delay
 pub fn OSTimeDly(_ticks: INT64U) {
     #[cfg(feature = "defmt")]
     trace!("OSTimeDly");
+    // See if trying to call from an ISR  
+    if OSIntNesting.load(Ordering::Acquire) > 0 {
+        return;
+    }
+    // See if called with scheduler locked
+    if OSLockNesting.load(Ordering::Acquire) > 0 {
+        return;
+    }
     unsafe {
         delay_tick(_ticks);
     }
 }
 
+
+/*
+*********************************************************************************************************
+*                                    DELAY TASK FOR SPECIFIED TIME
+*
+* Description: This function is called to delay execution of the currently running task until some time
+*              expires.  This call allows you to specify the delay time in HOURS, MINUTES, SECONDS and
+*              MILLISECONDS instead of ticks.
+*
+* Arguments  : hours     specifies the number of hours that the task will be delayed (max. is 255)
+*              minutes   specifies the number of minutes (max. 59)
+*              seconds   specifies the number of seconds (max. 59)
+*              ms        specifies the number of milliseconds (max. 999)
+*
+* Returns    : OS_ERR_NONE
+*              OS_ERR_TIME_INVALID_MINUTES
+*              OS_ERR_TIME_INVALID_SECONDS
+*              OS_ERR_TIME_INVALID_MS
+*              OS_ERR_TIME_ZERO_DLY
+*              OS_ERR_TIME_DLY_ISR
+*
+* Note(s)    : The resolution on the milliseconds depends on the tick rate.  For example, you can't do
+*              a 10 mS delay if the ticker interrupts every 100 mS. 
+*********************************************************************************************************
+*/
+#[cfg(feature = "OS_TIME_DLY_HMSM_EN")]
+/// this call allows you to specify the delay time
+pub fn OSTimeDlyHMSM(hours: INT8U, minutes: INT8U, seconds: INT8U, ms: INT64U) -> OS_ERR_STATE {
+    #[cfg(feature = "defmt")]
+    trace!("OSTimeDlyHMSM");
+    // See if trying to call from an ISR  
+    if OSIntNesting.load(Ordering::Acquire) > 0 {
+        return  OS_ERR_STATE::OS_ERR_TIME_DLY_ISR;
+    }
+    // See if called with scheduler locked
+    if OSLockNesting.load(Ordering::Acquire) > 0 {
+        return  OS_ERR_STATE::OS_ERR_SCHED_LOCKED;
+    }
+
+    #[cfg(feature = "OS_ARG_CHK_EN")]
+    {
+        if hours == 0 {
+            if minutes == 0 {
+                if seconds == 0 {
+                    if ms == 0 {
+                        return OS_ERR_STATE::OS_ERR_TIME_ZERO_DLY;
+                    }
+                }
+            }
+        }
+        // Validate arguments to be within range 
+        if minutes > 59 {
+            return OS_ERR_STATE::OS_ERR_TIME_INVALID_MINUTES;
+        }
+        if seconds > 59 {
+            return OS_ERR_STATE::OS_ERR_TIME_INVALID_SECONDS;
+        }
+        if ms > 999 {
+            return OS_ERR_STATE::OS_ERR_TIME_INVALID_MS;
+        }
+    }
+    unsafe {
+        delay_tick((hours as u64 * 3600000 + minutes as u64 * 60000 + seconds as u64 * 1000 + ms) * TICK_HZ / 1000);
+    }
+    return OS_ERR_STATE::OS_ERR_NONE;
+}
+
+/// delay async task 'n' ticks
 pub(crate) unsafe fn delay_tick(_ticks: INT64U) {
     // by noah：Remove tasks from the ready queue in advance to facilitate subsequent unified operations
     let executor = GlobalSyncExecutor.as_ref().unwrap();

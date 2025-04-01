@@ -26,6 +26,7 @@ use crate::executor::{GlobalSyncExecutor, OS_TASK_STORAGE};
 use crate::heap::stack_allocator::{dealloc_stack, stk_from_ptr};
 use crate::port::{INT8U, OS_STK};
 use crate::ucosii::{OSIntNesting, OSRunning, OS_ERR_STATE};
+// use crate::executor::OS_TCB_REF;
 const DEFAULT_REVOKE_STACK_SIZE: usize = 128;
 
 /*
@@ -173,4 +174,55 @@ fn init_task<F: Future + 'static>(prio: INT8U, future_func: impl FnOnce() -> F) 
         })
     }
     return err;
+}
+
+// #[cfg(feature = "OS_TASK_CHANGE_PRIO_EN")]
+// pub fn OSTaskChangePrio(oldprio: INT8U, newprio:INT8U) -> OS_ERR_STATE {
+//     #[cfg(feature = "OS_ARG_CHK_EN")]
+//     {
+//         if oldprio >= OS_LOWEST_PRIO {
+//             if oldprio != *GlobalSyncExecutor.as_ref().unwrap().OSPrioCur.get_unmut() {
+//                 return OS_ERR_STATE::OS_ERR_PRIO_INVALID;
+//             }
+//         }
+//         if newprio > OS_LOWEST_PRIO {
+//             return OS_ERR_STATE::OS_ERR_PRIO_INVALID;
+//         }
+//     }
+
+//     // let prio_tbl: &mut [OS_TCB_REF; (OS_LOWEST_PRIO + 1) as usize];
+//     // prio_tbl = GlobalSyncExecutor.as_ref().unwrap().
+//     // .os_prio_tbl.get_mut();
+
+// }
+
+#[cfg(feature = "OS_TASK_NAME_EN")]
+/// This function is used to set the name of a task.
+pub fn OSTaskNameSet(prio: INT8U, pname: &str) -> OS_ERR_STATE {
+    // argument checking
+    #[cfg(feature = "OS_ARG_CHK_EN")]
+    {
+        if prio > OS_LOWEST_PRIO {
+            return OS_ERR_STATE::OS_ERR_PRIO_INVALID;
+        }
+        if pname.is_empty() {
+            return OS_ERR_STATE::OS_ERR_PNAME_NULL;
+        }
+    }
+    // Make sure we don't set the task's name from within an ISR
+    if OSIntNesting.load(Acquire) > 0 {
+        return OS_ERR_STATE::OS_ERR_NAME_GET_ISR;
+    }
+
+    let result = critical_section::with(|_cs| { 
+        let executor = GlobalSyncExecutor.as_ref().unwrap();   
+        if executor.prio_exist(prio) {
+            executor.set_name(prio, pname.to_string());
+
+            OS_ERR_STATE::OS_ERR_NONE
+        } else {
+            OS_ERR_STATE::OS_ERR_TASK_NOT_EXIST
+        }
+    });
+    return result;
 }
