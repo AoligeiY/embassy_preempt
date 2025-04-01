@@ -102,4 +102,40 @@ impl TimerQueue {
         //     cur = cur_ref.OSTimerNext.get();
         // }
     }
+
+    /// remove a task from the timer queue
+    pub(crate) unsafe fn remove(&self, p: OS_TCB_REF) {
+        if self.head.get().is_none() {
+            return;
+        }
+        let mut cur = self.head.get();
+        let mut found = false;
+
+        while let Some(cur_ref) = cur {
+            if cur_ref == p {
+                found = true;
+                break;
+            }
+            cur = cur_ref.OSTimerNext.get();
+        }
+        if !found {
+            return;
+        }
+
+        let prev = p.OSTimerPrev.get();
+        let next = p.OSTimerNext.get();
+
+        p.OSTimerNext.set(None);
+        p.OSTimerPrev.set(None);
+
+        if let Some(prev_ref) = prev {
+            prev_ref.OSTimerNext.set(next);
+        } else {
+            self.head.set(next);
+        }
+
+        if let Some(next_ref) = next {
+            next_ref.OSTimerPrev.set(prev);
+        }
+    }
 }

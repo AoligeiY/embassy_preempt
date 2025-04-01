@@ -21,7 +21,8 @@ use core::ptr::null_mut;
 use critical_section::{CriticalSection, Mutex};
 #[cfg(feature = "defmt")]
 use defmt::trace;
-
+#[cfg(feature = "alarm_test")]
+use defmt::info;
 use crate::cfg::OS_ARENA_SIZE;
 
 /*
@@ -81,7 +82,32 @@ impl<const N: usize> Arena<N> {
         let ptr = unsafe { ptr.add(align_offset + layout.size()) };
 
         self.ptr.borrow(cs).set(ptr);
-
+        // #[cfg(feature = "alarm_test")]
+        // info!("alloc: {} -> {}", res, ptr);
         unsafe { &mut *(res as *mut MaybeUninit<T>) }
+    }
+    /// deallocate the most recently allocated memory block
+    pub fn dealloc<T>(&'static self, cs: CriticalSection, ptr: *mut T) {
+        #[cfg(feature = "defmt")]
+        trace!("dealloc of Arena");
+        let layout = Layout::new::<T>();
+
+        let start = self.buf.get().cast::<u8>();
+        let end = unsafe { start.add(N) };
+
+        let current_ptr = self.ptr.borrow(cs).get();
+        if ptr.is_null() || (ptr as usize >= end as usize) {
+            panic!("Invalid dealloc: Pointer is out of bounds or null.");
+        }
+        // convert ptr to u8* and check if it's the last allocated block
+        let ptr_u8 = ptr as *mut u8;
+        let prev_ptr = unsafe { ptr_u8.sub(layout.size()) };
+
+        if prev_ptr == current_ptr {
+            // if it's the last allocated block, roll back the allocation pointer
+            self.ptr.borrow(cs).set(ptr as *mut u8);
+        } else {
+            panic!("Non-LIFO deallocation is not supported in this arena allocator.");
+        }
     }
 }

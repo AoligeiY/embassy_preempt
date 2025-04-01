@@ -5,6 +5,7 @@ pub mod state;
 /// The executor for the uC/OS-II RTOS.
 pub mod timer_queue;
 pub mod waker;
+mod arena;
 use alloc::string::String;
 use core::alloc::Layout;
 use core::future::Future;
@@ -13,13 +14,12 @@ use core::ops::{Deref, DerefMut};
 use core::pin::Pin;
 use core::ptr::NonNull;
 use core::task::{Context, Poll};
+use core::sync::atomic::Ordering;
 
 #[cfg(feature = "alarm_test")]
-use defmt::info;
+use defmt::{trace,info};
 #[cfg(feature = "defmt")]
-use defmt::info;
-#[cfg(feature = "defmt")]
-use defmt::trace;
+use defmt::{trace,info};
 use lazy_static::lazy_static;
 // use run_queue_atomics::RunQueue;
 use state::State;
@@ -27,9 +27,9 @@ use time_driver::{AlarmHandle, Driver, RTC_DRIVER};
 
 pub use self::waker::task_from_waker;
 use crate::app::led::{stack_pin_high, stack_pin_low};
-use crate::arena::ARENA;
+use arena::ARENA;
 use crate::cfg::*;
-use crate::heap::stack_allocator::{alloc_stack, OS_STK_REF, PROGRAM_STACK, TASK_STACK_SIZE};
+use crate::heap::stack_allocator::{alloc_stack, dealloc_stack, OS_STK_REF, PROGRAM_STACK, TASK_STACK_SIZE};
 // use crate::os_sem::SemHandle;
 #[cfg(feature = "delay_idle")]
 use crate::os_time::blockdelay::delay;
@@ -134,6 +134,7 @@ pub struct OS_TASK_STORAGE<F: Future + 'static> {
 }
 
 /// the ref of the TCB. In other crate only it can be used to access the TCB
+#[derive(PartialEq)]
 #[derive(Clone, Copy)]
 #[allow(unused)]
 pub struct OS_TCB_REF {
@@ -368,7 +369,7 @@ impl<F: Future + 'static> OS_TASK_STORAGE<F> {
         // by noah: for we can create task after OSTaskCreate, so we need a cs
         critical_section::with(|cs| {
             let task_storage = ARENA.alloc::<OS_TASK_STORAGE<F>>(cs);
-            #[cfg(feature = "defmt")]
+            #[cfg(feature = "alarm_test")]
             trace!("size of the task storage is {}", mem::size_of::<OS_TASK_STORAGE<F>>());
             // create a new task which is not init
             task_storage.write(OS_TASK_STORAGE::new());
@@ -475,6 +476,8 @@ impl SyncExecutor {
     fn alarm_callback(ctx: *mut ()) {
         #[cfg(feature = "defmt")]
         trace!("alarm_callback");
+        #[cfg(feature = "alarm_test")]
+        info!("alarm_callback task");
         let this: &Self = unsafe { &*(ctx as *const Self) };
         // first to dequeue all the expired task, note that there must
         // have a task in the tiemr_queue because the alarm is triggered
@@ -540,6 +543,8 @@ impl SyncExecutor {
     }
 
     pub(crate) unsafe fn IntCtxSW(&'static self) {
+        #[cfg(feature = "alarm_test")]
+        info!("IntCtxSW");
         stack_pin_high();
         // set the cur task's is_in_thread_poll to false, as it is preempted in the interrupt context
         #[cfg(feature = "defmt")]
@@ -558,12 +563,21 @@ impl SyncExecutor {
                 trace!("no need to switch task");
                 false
             } else {
-                #[cfg(feature = "defmt")]
-                trace!("need to switch task");
-                self.set_highrdy_with_prio(new_prio);
-                true
+                // If the new task has a higher priority than the current task 
+                // and is not on interrupt as well as does not have a scheduling lock, we need to switch the task
+                if OSIntNesting.load(Ordering::Acquire) == 0{
+                    if OSLockNesting.load(Ordering::Acquire) == 0{
+                        #[cfg(feature = "defmt")]
+                        trace!("need to switch task");
+                        self.set_highrdy_with_prio(new_prio);
+
+                        return true;
+                    }
+                }
+                false
             }
-        }) {
+        }) 
+        {
             unsafe { self.interrupt_poll() }
         }
         stack_pin_low();
@@ -597,8 +611,14 @@ impl SyncExecutor {
             trace!("interrupt poll :the highrdy task's prio is {}", task.OSTCBPrio);
             trace!("interrupt poll :the cur task's prio is {}", self.OSPrioCur.get_unmut());
         }
+        #[cfg(feature = "alarm_test")]
+        {
+            info!("the current task is {}", *self.OSPrioCur.get_unmut());
+            // info!("alloc stack for the task {}", *self.OSPrioHighRdy.get_unmut());
+        }
         if task.OSTCBStkPtr.is_none() {
-            #[cfg(feature = "defmt")]
+            #[cfg(feature = "alarm_test")]
+            // #[cfg(feature = "defmt")]
             info!("the task's stk is none");
             // if the task has no stack, it's a task, we need to mock a stack for it.
             // we need to alloc a stack for the task
@@ -606,6 +626,8 @@ impl SyncExecutor {
             // by noah: *TEST*. Maybe when alloc_stack is called, we need the cs
             let mut stk: OS_STK_REF;
             if *self.OSPrioCur.get_unmut() == OS_TASK_IDLE_PRIO {
+                #[cfg(feature = "alarm_test")]
+                info!("the task is idle");
                 // #[cfg(feature = "alarm_test")]
                 // {
                 //     info!("the cur task is idle and optimize change");
@@ -620,7 +642,8 @@ impl SyncExecutor {
             } else {
                 #[cfg(feature = "alarm_test")]
                 {
-                    info!("alloc stack");
+                    // info!("the current task is {}", *self.OSPrioCur.get_unmut());
+                    info!("alloc stack for the task {}", *self.OSPrioHighRdy.get_unmut());
                 }
                 let layout = Layout::from_size_align(TASK_STACK_SIZE, 4).unwrap();
                 stk = alloc_stack(layout);
@@ -633,13 +656,19 @@ impl SyncExecutor {
             stk.STK_REF = OSTaskStkInit(stk.STK_REF);
 
             task.OSTCBStkPtr = Some(stk);
+        } else {
+            #[cfg(feature = "alarm_test")]
+            {
+                info!("the highrdy task {} have a stack {}", *self.OSPrioHighRdy.get_unmut(), task.OSTCBStkPtr.as_ref().unwrap().STK_REF);
+            }
         }
         // restore the task from stk
         critical_section::with(|_| {
             if task.OSTCBPrio == *self.OSPrioHighRdy.get_unmut() {
                 unsafe {
-                    #[cfg(feature = "defmt")]
-                    trace!("restore the task/thread");
+                    // #[cfg(feature = "defmt")]
+                    #[cfg(feature = "alarm_test")]
+                    info!("restore the task/thread");
                     restore_thread_task()
                 };
             }
@@ -648,7 +677,8 @@ impl SyncExecutor {
 
     /// since when it was called, there is no task running, we need poll all the task that is ready in bitmap
     pub(crate) unsafe fn poll(&'static self) -> ! {
-        #[cfg(feature = "defmt")]
+        // #[cfg(feature = "defmt")]
+        #[cfg(feature = "alarm_test")]
         trace!("poll");
         RTC_DRIVER.set_alarm_callback(self.alarm, Self::alarm_callback, self as *const _ as *mut ());
         // build this as a loop
@@ -669,7 +699,7 @@ impl SyncExecutor {
                 #[cfg(feature = "defmt")]
                 trace!("end delay the idle task");
             }
-            // in the executor's thead poll, the highrdy task must be polled, there we don't set cur to be highrdy
+            // in the executor's thread poll, the highrdy task must be polled, there we don't set cur to be highrdy
             let task = critical_section::with(|_| {
                 let mut task = self.OSTCBHighRdy.get();
                 if task.OSTCBStkPtr.is_none() {
@@ -697,6 +727,8 @@ impl SyncExecutor {
     }
 
     pub unsafe fn single_poll(&'static self,mut task: OS_TCB_REF) {
+        #[cfg(feature = "alarm_test")]
+        trace!("single_poll");
         task.OS_POLL_FN.get().unwrap_unchecked()(task);
             // by noah：Remove tasks from the ready queue in advance to facilitate subsequent unified operations
             // update timer
@@ -792,6 +824,7 @@ impl SyncExecutor {
         prio_tbl[prio as USIZE].ptr.is_some()
     }
 
+    // to take up space in the bitmap
     pub extern "aapcs" fn reserve_bit(&self, prio: INT8U) {
         let prio_tbl: &mut [OS_TCB_REF; (OS_LOWEST_PRIO + 1) as usize];
         prio_tbl = self.os_prio_tbl.get_mut();
@@ -822,7 +855,25 @@ impl SyncExecutor {
             }
         }
     }
+    
+    #[cfg(feature = "OS_TASK_NAME_EN")]
+    /// set task's name
+    pub fn set_name(&self, prio: INT8U, name: String) {
+        let prio_tbl = self.os_prio_tbl.get_mut();
+        // critical_section::with(|_| {
+        prio_tbl[prio as usize].OSTCBTaskName = name;
+        // });
+    }
+
+    #[cfg(feature = "OS_TASK_PROFILE_EN")]
+    /// add the task's context switch counter
+    pub fn add_ctx_sw_ctr(&self) {
+        unsafe {
+            self.OSTCBHighRdy.get().OSTCBCtxSwCtr += 1;
+        }
+    }
 }
+
 /// Wake a task by `TaskRef`.
 pub fn wake_task_no_pend(task: OS_TCB_REF) {
     #[cfg(feature = "defmt")]
@@ -833,3 +884,188 @@ pub fn wake_task_no_pend(task: OS_TCB_REF) {
         executor.enqueue(task);
     }
 }
+
+
+/*
+*********************************************************************************************************
+*                                      CHANGE PRIORITY OF A TASK
+*
+* Description: This function allows you to change the priority of a task dynamically.  Note that the new
+*              priority MUST be available.
+*
+* Arguments  : oldp     is the old priority
+*
+*              newp     is the new priority
+*
+* Returns    : OS_ERR_NONE            is the call was successful
+*              OS_ERR_PRIO_INVALID    if the priority you specify is higher that the maximum allowed
+*                                     (i.e. >= OS_LOWEST_PRIO)
+*              OS_ERR_PRIO_EXIST      if the new priority already exist.
+*              OS_ERR_PRIO            there is no task with the specified OLD priority (i.e. the OLD task does
+*                                     not exist.
+*              OS_ERR_TASK_NOT_EXIST  if the task is assigned to a Mutex PIP.
+*********************************************************************************************************
+*/
+// #[cfg(feature = "OS_TASK_CHANGE_PRIO_EN")]
+/// This function allows you to change the priority of a task dynamically.  Note that the new priority MUST be available.
+pub fn OSTaskChangePrio(old_prio: INT8U, new_prio:INT8U) -> OS_ERR_STATE {
+    let mut old_prio = old_prio;
+    let executor = GlobalSyncExecutor.as_ref().unwrap();
+
+    #[cfg(feature = "OS_ARG_CHK_EN")]
+    {
+        if old_prio >= OS_LOWEST_PRIO {
+            if old_prio != OS_PRIO_SELF as u8 {
+                return OS_ERR_STATE::OS_ERR_PRIO_INVALID;
+            }
+        }
+        if new_prio > OS_LOWEST_PRIO {
+            return OS_ERR_STATE::OS_ERR_PRIO_INVALID;
+        }
+    }
+    
+    let result = critical_section::with(|_| {
+        let prio_tbl: &mut [OS_TCB_REF; (OS_LOWEST_PRIO + 1) as usize];
+        prio_tbl = executor.os_prio_tbl.get_mut();
+
+        // check if the old prio is exist
+        if prio_tbl[new_prio as USIZE].ptr.is_some() {
+            return OS_ERR_STATE::OS_ERR_PRIO_EXIST;
+        }
+        // See if changing self
+        if old_prio == OS_PRIO_SELF as u8 {
+            old_prio = *executor.OSPrioCur.get_unmut();
+        }
+        // Does task to change exist?
+        if !prio_tbl[old_prio as USIZE].ptr.is_some() {
+            return OS_ERR_STATE::OS_ERR_PRIO;
+        }
+
+        let mut _ptcb = prio_tbl[old_prio as USIZE];
+        
+        // the OS_LOWEST_PRIO is less than or equal to 63
+        let y_new = new_prio >> 3;
+        let x_new = new_prio & 0x07;
+        let bity_new = 1 << y_new;
+        let bitx_new = 1 << x_new;
+
+        // Remove the old priority from the priority table and place it in the new priority in the priority table
+        prio_tbl[old_prio as USIZE].ptr = None;
+        prio_tbl[new_prio as USIZE] = _ptcb;
+
+        let y_old = _ptcb.OSTCBY;
+        let bity_old = _ptcb.OSTCBBitY;
+        let bitx_old = _ptcb.OSTCBBitX;
+
+        let os_rdy_tbl = executor.OSRdyTbl.get_mut();
+        let os_rdy_grp = executor.OSRdyGrp.get_mut();
+        // If task is ready make it not
+        if os_rdy_tbl[y_old as USIZE] & bitx_old != 0 {
+            os_rdy_tbl[y_old as USIZE] &= !bitx_old;
+
+            if os_rdy_tbl[y_old as USIZE] == 0 {
+                *os_rdy_grp &= !bity_old;
+            }
+            // add new priority to the ready queue
+            *os_rdy_grp |= bity_new;
+            os_rdy_tbl[y_new as USIZE] |= bitx_new;
+        }
+
+        _ptcb.OSTCBPrio = new_prio;
+        _ptcb.OSTCBY = y_new;
+        _ptcb.OSTCBX = x_new;
+        _ptcb.OSTCBBitY = bity_new;
+        _ptcb.OSTCBBitX = bitx_new;
+
+        OS_ERR_STATE::OS_ERR_NONE
+    });
+
+    if result != OS_ERR_STATE::OS_ERR_NONE {
+        return result;
+    }
+    if OSRunning.load(Ordering::Acquire) {
+        unsafe { GlobalSyncExecutor.as_ref().unwrap().IntCtxSW() };
+    }
+    
+    return OS_ERR_STATE::OS_ERR_NONE;
+}
+
+
+/*
+*********************************************************************************************************
+*                                            DELETE A TASK
+*
+* Description: This function allows you to delete a task.  The calling task can delete itself by
+*              its own priority number.  The deleted task is returned to the dormant state and can be
+*              re-activated by creating the deleted task again.
+*
+*********************************************************************************************************
+*/
+// #[cfg(feature = "OS_TASK_DEL_EN")]
+/// this function allows you to delete a task 
+pub fn OSTaskDel(prio: INT8U) -> OS_ERR_STATE {
+    let mut prio = prio;
+    if OSIntNesting.load(Ordering::Acquire) > 0 {
+        return OS_ERR_STATE::OS_ERR_TASK_DEL_ISR;
+    }
+    if prio == OS_TASK_IDLE_PRIO {
+        return OS_ERR_STATE::OS_ERR_TASK_DEL_IDLE;
+    }
+    #[cfg(feature = "OS_ARG_CHK_EN")]
+    {
+        if prio >= OS_LOWEST_PRIO {
+            if prio != OS_PRIO_SELF as u8 {
+                return OS_ERR_STATE::OS_ERR_PRIO_INVALID;
+            }
+        }
+    }
+    let result = critical_section::with(|_| {
+        let executor = GlobalSyncExecutor.as_ref().unwrap();
+        let prio_tbl: &mut [OS_TCB_REF; (OS_LOWEST_PRIO + 1) as usize];
+        prio_tbl = executor.os_prio_tbl.get_mut();
+
+        if prio == OS_PRIO_SELF as u8 {
+            prio = *executor.OSPrioCur.get_unmut();
+        }
+        let mut ptcb = prio_tbl[prio as USIZE];
+        if ptcb.ptr.is_none() {
+            return OS_ERR_STATE::OS_ERR_TASK_NOT_EXIST;
+        }
+        let os_rdy_tbl = executor.OSRdyTbl.get_mut();
+        let os_rdy_grp = executor.OSRdyGrp.get_mut();
+
+        // Make task not ready
+        os_rdy_tbl[ptcb.OSTCBY as USIZE] &= !ptcb.OSTCBBitX;
+        if os_rdy_tbl[ptcb.OSTCBY as USIZE] == 0 {
+            *os_rdy_grp &= !ptcb.OSTCBBitY;
+        }
+
+        OSTaskCtr.fetch_sub(1, Ordering::SeqCst);
+        ptcb.OSTCBStat.despawn();
+
+        prio_tbl[prio as USIZE].ptr = None;
+        dealloc_stack(&mut ptcb.take_stk());
+        unsafe{
+           ptcb.is_in_thread_poll.set(true); 
+        }
+
+        unsafe {
+            executor.timer_queue.remove(ptcb);
+        }
+
+        #[cfg(feature = "OS_TASK_NAME_EN")]
+        {
+            ptcb.OSTCBTaskName = "?";
+        }
+        return OS_ERR_STATE::OS_ERR_NONE;
+    });
+    
+    if result != OS_ERR_STATE::OS_ERR_NONE {
+        return result;
+    }
+    if OSRunning.load(Ordering::Acquire) {
+        unsafe { GlobalSyncExecutor.as_ref().unwrap().IntCtxSW() };
+    }
+    return OS_ERR_STATE::OS_ERR_NONE;
+}
+
