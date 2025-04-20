@@ -16,12 +16,6 @@ use crate::app::led::{stack_pin_high, stack_pin_low};
 use crate::executor::GlobalSyncExecutor;
 use crate::heap::stack_allocator::{INTERRUPT_STACK, PROGRAM_STACK};
 use crate::ucosii::OSCtxSwCtr;
-// use crate::ucosii::OS_TASK_IDLE_PRIO;
-
-// use crate::ucosii::OSIdleCtr;
-// use core::sync::atomic::Ordering::Relaxed;
-
-// use crate::heap::init_heap;
 
 /// finish the init part of the CPU/MCU
 pub fn OSInitHookBegin() {}
@@ -87,27 +81,23 @@ fn PendSV() {
     #[cfg(feature = "OS_TASK_PROFILE_EN")]
     {
         // add the task's context switch counter
-        global_executor.add_ctx_sw_ctr();
+        unsafe { global_executor.OSTCBHighRdy.get().OSTCBCtxSwCtr.add(1); }
     }
+
     // add global context switch counter
     OSCtxSwCtr.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+
     #[cfg(feature = "defmt")]
     info!("OSCtxSwCtr is {}", OSCtxSwCtr.load(core::sync::atomic::Ordering::SeqCst));
 
     let stk_ptr: crate::heap::stack_allocator::OS_STK_REF = global_executor.OSTCBHighRdy.get_mut().take_stk();
     let stk_heap_ref = stk_ptr.HEAP_REF;
     let program_stk_ptr = stk_ptr.STK_REF.as_ptr();
-    // #[cfg(feature = "alarm_test")]
-    // info!("the new stack pointer is {:?}, program stack is {:?}", program_stk_ptr, PROGRAM_STACK.exclusive_access().STK_REF.as_ptr());
     // the swap will return the ownership of PROGRAM_STACK's original value and set the new value(check it when debuging!!!)
     let mut old_stk = PROGRAM_STACK.swap(stk_ptr);
     
-    // #[cfg(feature = "alarm_test")]
-    // info!("the new stack pointer is {:?}, program stack is {:?}", old_stk.STK_REF.as_ptr(), PROGRAM_STACK.exclusive_access().STK_REF.as_ptr());
     let tcb_cur = global_executor.OSTCBCur.get_mut();
 
-    // by noah: *TEST*
-    // let TCB: &OS_TCB;
     if !*tcb_cur.is_in_thread_poll.get_unmut() {
         // this situation is in interrupt poll
         #[cfg(feature = "defmt")]
@@ -125,12 +115,14 @@ fn PendSV() {
         // then as we have stored the context, we need to update the old_stk's top
         old_stk.STK_REF = NonNull::new(old_stk_ptr as *mut OS_STK).unwrap();
         #[cfg(feature = "alarm_test")]
-        info!("in pendsv, the old stk ptr is {:?}", old_stk_ptr);
+        info!("in pendsv, the old stk ptr is {:?}, this stack pointer is saved", old_stk_ptr);
         tcb_cur.set_stk(old_stk);
     } else if old_stk.HEAP_REF != stk_heap_ref {
         // the situation is in poll
-        // #[cfg(feature = "alarm_test")]
-        // info!("drop the old stack");
+        #[cfg(feature = "alarm_test")]
+        info!("in pendsv, the old stk ptr is {:?}, and stk_heap_ref is {:?}, this stack will be drop", old_stk.HEAP_REF.as_ptr(), stk_heap_ref.as_ptr());
+        #[cfg(feature = "alarm_test")]
+        info!("drop the old stack");
         drop(old_stk);
     } else {
         // #[cfg(feature = "alarm_test")]
@@ -175,17 +167,6 @@ pub extern "Rust" fn run_idle() {
         asm!("wfe");
     }
 }
-
-// #[no_mangle]
-// #[inline]
-// /// the function to return from interrupt(cortex-m)
-// pub extern "Rust" fn OSIntExit(){
-//     unsafe {
-//         asm!(
-
-//         )
-//     }
-// }
 
 /// the context structure store in stack
 #[repr(C, align(4))]

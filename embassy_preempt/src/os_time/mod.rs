@@ -1,13 +1,15 @@
 #[cfg(feature = "defmt")]
 #[allow(unused_imports)]
 use defmt::{info, trace};
+#[cfg(feature = "alarm_test")]
+use defmt::{info, trace};
 use core::sync::atomic::Ordering;
 
-use crate::executor::{wake_task_no_pend, GlobalSyncExecutor};
+use crate::executor::{self, wake_task_no_pend, GlobalSyncExecutor};
 use crate::port::time_driver::{Driver, RTC_DRIVER};
-use crate::port::{INT64U, INT8U};
-use crate::cfg::TICK_HZ;
-use crate::ucosii::{OSIntNesting, OSLockNesting, OS_ERR_STATE};
+use crate::port::{INT8U, INT64U, USIZE};
+use crate::cfg::{TICK_HZ, OS_LOWEST_PRIO};
+use crate::ucosii::{OSRunning, OSIntNesting, OSLockNesting, OS_ERR_STATE};
 /// the mod of blockdelay of uC/OS-II kernel
 pub mod blockdelay;
 /// the mod of duration of uC/OS-II kernel
@@ -22,6 +24,60 @@ pub fn OSTimerInit() {
     #[cfg(feature = "defmt")]
     trace!("OSTimerInit");
     RTC_DRIVER.init();
+}
+
+/// delay async task 'n' ticks
+pub(crate) unsafe fn delay_tick(_ticks: INT64U) {
+    // by noah：Remove tasks from the ready queue in advance to facilitate subsequent unified operations
+    let executor = GlobalSyncExecutor.as_ref().unwrap();
+    let task = executor.OSTCBCur.get_mut();
+    task.expires_at.set(RTC_DRIVER.now() + _ticks);
+    // update timer
+    let mut next_expire = critical_section::with(|_| {
+        executor.set_task_unready(*task);
+        critical_section::with(|_| executor.timer_queue.update(*task))
+    });
+    #[cfg(feature = "defmt")]
+    trace!("in delay_tick the next expire is {:?}", next_expire);
+    if critical_section::with(|_| {
+        if next_expire < *executor.timer_queue.set_time.get_unmut() {
+            executor.timer_queue.set_time.set(next_expire);
+            true
+        } else {
+            // if the next_expire is not less than the set_time, it means the expire dose not arrive, or the task
+            // dose not expire a timestamp so we should set the task unready
+            false
+        }
+    }) {
+        // by noah：if the set alarm return false, it means the expire arrived.
+        // So we can not set the **task which is waiting for the next_expire** as unready
+        // The **task which is waiting for the next_expire** must be current task
+        // we must do this until we set the alarm successfully or there is no alarm required
+        while !RTC_DRIVER.set_alarm(executor.alarm, next_expire) {
+            // by noah: if set alarm failed, it means the expire arrived, so we should not set the task unready
+            // we should **dequeue the task** from time_queue, **clear the set_time of the time_queue** and continue the loop
+            // (just like the operation in alarm_callback)
+            executor
+                .timer_queue
+                .dequeue_expired(RTC_DRIVER.now(), wake_task_no_pend);
+            // then we need to set a new alarm according to the next expiration time
+            next_expire = unsafe { executor.timer_queue.next_expiration() };
+            #[cfg(feature = "defmt")]
+            trace!("in delay_tick the next expire is {:?}", next_expire);
+            // by noah：we also need to updater the set_time of the timer_queue
+            executor.timer_queue.set_time.set(next_expire);
+        }
+    }
+    // find the highrdy
+    if critical_section::with(|_| {
+        executor.set_highrdy();
+        executor.OSPrioHighRdy != executor.OSPrioCur
+    }) {
+        // call the interrupt poll
+        GlobalSyncExecutor.as_ref().unwrap().interrupt_poll();
+        #[cfg(feature = "defmt")]
+        trace!("end the delay");
+    }
 }
 
 
@@ -109,56 +165,54 @@ pub fn OSTimeDlyHMSM(hours: INT8U, minutes: INT8U, seconds: INT8U, ms: INT64U) -
     return OS_ERR_STATE::OS_ERR_NONE;
 }
 
-/// delay async task 'n' ticks
-pub(crate) unsafe fn delay_tick(_ticks: INT64U) {
-    // by noah：Remove tasks from the ready queue in advance to facilitate subsequent unified operations
-    let executor = GlobalSyncExecutor.as_ref().unwrap();
-    let task = executor.OSTCBCur.get_mut();
-    task.expires_at.set(RTC_DRIVER.now() + _ticks);
-    // update timer
-    let mut next_expire = critical_section::with(|_| {
-        executor.set_task_unready(*task);
-        critical_section::with(|_| executor.timer_queue.update(*task))
+// #[cfg(feature = "OS_TIME_DLY_RESUME_EN")]
+/// This function is used resume a task that has been delayed 
+/// through a call to either OSTimeDly() or OSTimeDlyHMSM().
+pub fn OSTimeDlyResume(prio: INT8U) -> OS_ERR_STATE {
+    // #[cfg(feature = "defmt")]
+    #[cfg(feature = "alarm_test")]
+    trace!("OSTimeDlyResume");
+
+    if prio >= OS_LOWEST_PRIO {
+        return OS_ERR_STATE::OS_ERR_PRIO_INVALID;
+    }
+
+    let result = critical_section::with(|_| {
+        let executor = GlobalSyncExecutor.as_ref().unwrap();
+        let prio_tbl = executor.get_prio_tbl();
+
+        let mut _ptcb = prio_tbl[prio as USIZE];
+        // the task does not exist
+        if _ptcb.ptr.is_none() {
+            return OS_ERR_STATE::OS_ERR_TASK_NOT_EXIST;
+        }
+        unsafe {
+            if _ptcb.expires_at.get() == u64::MAX || _ptcb.expires_at.get() < RTC_DRIVER.now() {
+                return OS_ERR_STATE::OS_ERR_TIME_NOT_DLY;
+            } 
+            _ptcb.expires_at.set(u64::MAX);
+            executor.enqueue(_ptcb);
+            executor.timer_queue.remove(_ptcb);
+        }
+        return OS_ERR_STATE::OS_ERR_NONE;
     });
-    #[cfg(feature = "defmt")]
-    trace!("in delay_tick the next expire is {:?}", next_expire);
-    if critical_section::with(|_| {
-        if next_expire < *executor.timer_queue.set_time.get_unmut() {
-            executor.timer_queue.set_time.set(next_expire);
-            true
-        } else {
-            // if the next_expire is not less than the set_time, it means the expire dose not arrive, or the task
-            // dose not expire a timestamp so we should set the task unready
-            false
-        }
-    }) {
-        // by noah：if the set alarm return false, it means the expire arrived.
-        // So we can not set the **task which is waiting for the next_expire** as unready
-        // The **task which is waiting for the next_expire** must be current task
-        // we must do this until we set the alarm successfully or there is no alarm required
-        while !RTC_DRIVER.set_alarm(executor.alarm, next_expire) {
-            // by noah: if set alarm failed, it means the expire arrived, so we should not set the task unready
-            // we should **dequeue the task** from time_queue, **clear the set_time of the time_queue** and continue the loop
-            // (just like the operation in alarm_callback)
-            executor
-                .timer_queue
-                .dequeue_expired(RTC_DRIVER.now(), wake_task_no_pend);
-            // then we need to set a new alarm according to the next expiration time
-            next_expire = unsafe { executor.timer_queue.next_expiration() };
-            #[cfg(feature = "defmt")]
-            trace!("in delay_tick the next expire is {:?}", next_expire);
-            // by noah：we also need to updater the set_time of the timer_queue
-            executor.timer_queue.set_time.set(next_expire);
-        }
+    
+    if result != OS_ERR_STATE::OS_ERR_NONE {
+        return result;
     }
-    // find the highrdy
-    if critical_section::with(|_| {
-        executor.set_highrdy();
-        executor.OSPrioHighRdy != executor.OSPrioCur
-    }) {
-        // call the interrupt poll
-        GlobalSyncExecutor.as_ref().unwrap().interrupt_poll();
-        #[cfg(feature = "defmt")]
-        trace!("end the delay");
+
+    if OSRunning.load(Ordering::Acquire) {
+        unsafe { GlobalSyncExecutor.as_ref().unwrap().IntCtxSW() };
     }
+
+    return OS_ERR_STATE::OS_ERR_NONE;
 }
+
+/// Obtain the current value of the clock ticks since OS boot.
+#[cfg(feature = "OS_TIME_GET_SET_EN")]
+pub fn OSTimeGet() -> INT64U {
+    #[cfg(feature = "defmt")]
+    trace!("OSTimeGet");
+    RTC_DRIVER.now() 
+}
+

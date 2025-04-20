@@ -15,7 +15,7 @@ use stm32_metapac::GPIOA;
 use stm32_metapac::GPIOC;
 
 use super::{DISENABLE, ENABLE};
-use crate::executor::{wake_task_no_pend, GlobalSyncExecutor, OS_TCB_REF};
+use crate::executor::{wake_task_no_pend, GlobalSyncExecutor, task::OS_TCB_REF};
 use crate::pac::Interrupt;
 use crate::util::SyncUnsafeCell;
 
@@ -61,12 +61,12 @@ pub(crate) static BOT_DRIVER: BotDriver = BotDriver {
 #[cfg(feature = "GPIOC")]
 /// EXTI15_10 interrupt handler
 pub extern "C" fn EXTI15_10() {
-    use crate::app::led::interrupt_pin_high;
+    // use crate::app::led::interrupt_pin_high;
 
     #[cfg(feature = "defmt")]
     info!("EXTI15_10");
     // set the interrupt pin high, so the high level indicate the interrupt and schedule. Begin the interrupt and schedule test
-    interrupt_pin_high();
+    // interrupt_pin_high();
     BOT_DRIVER.on_interrupt();
     #[cfg(feature = "defmt")]
     info!("exit_EXTI15_10");

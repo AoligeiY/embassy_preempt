@@ -20,6 +20,7 @@ use stm32_metapac::{Interrupt, FLASH, RCC};
 use crate::cfg::{APB_HZ, TICK_HZ, SYSCLK_HZ};
 use crate::executor::waker;
 use crate::port::{BOOLEAN, INT16U, INT32U, INT64U, INT8U, TIMER, USIZE};
+use crate::app::led::{interrupt_pin_high, interrupt_pin_low};
 
 #[cfg(any(
     feature = "time_driver_tim9",
@@ -42,11 +43,13 @@ const ALARM_COUNT: USIZE = 3;
 #[no_mangle]
 /// TIM3 interrupt handler
 pub extern "C" fn TIM3() {
+    interrupt_pin_high();
     #[cfg(feature = "defmt")]
     trace!("TIM3");
     RTC_DRIVER.on_interrupt();
     #[cfg(feature = "defmt")]
     trace!("exit TIM3");
+    interrupt_pin_low();
 }
 /*
 *********************************************************************************************************
@@ -165,7 +168,7 @@ impl RtcDriver {
         // enable the Timer Driver
         enable_Timer();
 
-        Get_APBFreq();
+        get_APBfreq();
 
         // disable the Timer
         TIMER.cr1().modify(|w| w.set_cen(false));
@@ -210,12 +213,40 @@ impl RtcDriver {
             compiler_fence(Ordering::SeqCst);
             NVIC::unmask(Interrupt::TIM3);
         }
-        // set the priority of the interrupt
-        
-
-        // NVIC::set_priority(Interrupt::TIM3,piro);
-        // <T as GeneralInstance1Channel>::CaptureCompareInterrupt::unpend();
-        // unsafe { <T as GeneralInstance1Channel>::CaptureCompareInterrupt::enable() };
+        #[cfg(feature = "time_driver_tim1")]
+        {
+            NVIC::unpend(Interrupt::TIM1_CC);
+            NVIC::unpend(Interrupt::TIM1_UP_TIM10);
+            unsafe {
+                compiler_fence(Ordering::SeqCst);
+                NVIC::unmask(Interrupt::TIM1_CC);
+                NVIC::unmask(Interrupt::TIM1_UP_TIM10);
+            }
+        }
+        #[cfg(feature = "time_driver_tim2")]
+        {
+            NVIC::unpend(Interrupt::TIM2);
+            unsafe {
+                compiler_fence(Ordering::SeqCst);
+                NVIC::unmask(Interrupt::TIM2);
+            }
+        }
+        #[cfg(feature = "time_driver_tim4")]
+        {
+            NVIC::unpend(Interrupt::TIM4);
+            unsafe {
+                compiler_fence(Ordering::SeqCst);
+                NVIC::unmask(Interrupt::TIM4);
+            }
+        }
+        #[cfg(feature = "time_driver_tim5")]
+        {
+            NVIC::unpend(Interrupt::TIM5);
+            unsafe {
+                compiler_fence(Ordering::SeqCst);
+                NVIC::unmask(Interrupt::TIM5);
+            }
+        }
 
         // enable the Timer
         TIMER.cr1().modify(|w| w.set_cen(ENABLE));
@@ -422,11 +453,6 @@ pub(crate) static RTC_DRIVER: RtcDriver = RtcDriver {
 *********************************************************************************************************
 */
 
-// get the Timer instance
-// fn regs_gp16() -> TimGp16 {
-//     unsafe { TimGp16::from_ptr(TIMER::regs()) }
-// }
-
 /// set the rcc of the Timer
 fn rcc_init() {
     RCC.cr().modify(|v| {
@@ -498,7 +524,7 @@ fn enable_Timer() {
     RCC.apb1enr().modify(|v| v.set_tim12en(ENABLE));
 
     // #[cfg(feature = "time_driver_tim15")]
-    // RCC.apb2enr().modify(|v| v.set_tim15en(ENABLE));
+    
     // #[cfg(feature = "time_driver_tim20")]
     
     // #[cfg(feature = "time_driver_tim21")]
@@ -541,7 +567,7 @@ pub fn _embassy_time_schedule_wake(at: u64, waker: &core::task::Waker) {
 }
 
 /// Get the frequency of the APB bus
-pub fn Get_APBFreq() {
+pub fn get_APBfreq() {
     let SYSCLK = match RCC.cfgr().read().sw() {
         Sw::HSI => 16_000_000, 
         Sw::HSE => 8_000_000, 

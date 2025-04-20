@@ -9,7 +9,7 @@ use defmt::info;
 use embassy_preempt::app::led::{LED_Init, LED_OFF, LED_ON};
 // <- derive attribute
 use embassy_preempt::os_core::{OSInit, OSStart};
-use embassy_preempt::os_task::{AsyncOSTaskCreate, SyncOSTaskCreate};
+use embassy_preempt::executor::{AsyncOSTaskCreate, SyncOSTaskCreate};
 // use embassy_preempt::os_time::blockdelay::delay;
 use embassy_preempt::os_time::timer::Timer;
 use embassy_preempt::os_time::OSTimeDly;

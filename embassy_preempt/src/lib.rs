@@ -22,8 +22,9 @@
 ********************************************************************************************************************************************
 */
 #[cfg(any(feature = "defmt",feature = "alarm_test"))]
-use defmt_rtt as _; // global logger
-extern crate alloc;
+use defmt_rtt as _; 
+// global logger
+pub extern crate alloc;
 /// the mod of uC/OS-II kernel
 pub mod os_core;
 /// the mod of flag of uC/OS-II kernel
@@ -38,16 +39,16 @@ pub mod os_mutex;
 pub mod os_q;
 // /// the mod of task of uC/OS-II kernel
 // pub mod os_task;
-/// the stk allocator
-pub mod arena;
+// /// the stk allocator
+// pub mod arena;
 /// need to import port here
 pub mod cfg;
 /// the async scheduler(executor) of rust uC
 pub mod executor;
 /// the mod of semaphore of uC/OS-II kernel
 pub mod os_sem;
-/// the task interface of uC/OS-II kernel
-pub mod os_task;
+// /// the task interface of uC/OS-II kernel
+// pub mod os_task;
 /// the mod of time of uC/OS-II kernel
 pub mod os_time;
 /// the mod of timer of uC/OS-II kernel

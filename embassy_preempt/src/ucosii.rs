@@ -28,14 +28,8 @@
 *********************************************************************************************************
 */
 
-use core::cell::RefCell;
 use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8};
-
-use critical_section::Mutex;
-use lazy_static::lazy_static;
-
 use crate::cfg::*;
-use crate::executor::OS_TCB_REF;
 use crate::port::*;
 
 /*

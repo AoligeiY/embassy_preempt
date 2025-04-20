@@ -49,14 +49,14 @@ use os_cpu::*;
 use crate::heap::Init_Heap;
 use crate::executor::GlobalSyncExecutor;
 use crate::heap::stack_allocator::OS_InitStackAllocator;
-use crate::os_task::SyncOSTaskCreate;
+use crate::executor::SyncOSTaskCreate;
 #[cfg(feature = "alarm_test")]
 use crate::os_time::blockdelay;
 use crate::os_time::OSTimerInit;
 // use crate::os_q::OS_QInit;
 use crate::port::*;
 #[cfg(feature = "OS_TASK_NAME_EN")]
-use crate::os_task::OSTaskNameSet;
+use crate::executor::OSTaskNameSet;
 #[cfg(feature = "OS_TASK_REG_TBL_SIZE")]
 use crate::ucosii::OSTaskRegNextAvailID;
 use crate::ucosii::{
@@ -243,6 +243,7 @@ pub extern "C" fn OSInit() {
 *********************************************************************************************************
 */
 
+#[inline]
 /// This function is used to notify uC/OS-II that you are about to service
 /// an interrupt service routine (ISR).  This allows uC/OS-II to keep track
 /// of interrupt nesting and thus only perform rescheduling at the last nested ISR.
@@ -312,6 +313,7 @@ pub unsafe fn OSIntExit() {
 *********************************************************************************************************
 */
 
+#[inline]
 /// This function is used to prevent rescheduling to take place.
 /// This allows your application to prevent context switches until
 /// you are ready to permit context switching.

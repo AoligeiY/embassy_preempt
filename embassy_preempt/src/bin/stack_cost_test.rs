@@ -10,7 +10,7 @@ use core::ffi::c_void;
 use defmt::trace;
 use embassy_preempt::app::led::{interrupt_pin_low, thread_pin_high, thread_pin_low, Pin_Init};
 use embassy_preempt::os_core::{OSInit, OSStart};
-use embassy_preempt::os_task::AsyncOSTaskCreate;
+use embassy_preempt::executor::AsyncOSTaskCreate;
 use embassy_preempt::os_time::timer::Timer;
 use embassy_preempt::pac::{gpio, GPIOA, RCC};
 use embassy_preempt::port::bottom_driver::Bottom::bottom;

@@ -18,12 +18,10 @@ use core::cell::{Cell, UnsafeCell};
 use core::mem::MaybeUninit;
 use core::ptr::null_mut;
 
+use crate::cfg::OS_ARENA_SIZE;
 use critical_section::{CriticalSection, Mutex};
 #[cfg(feature = "defmt")]
 use defmt::trace;
-#[cfg(feature = "alarm_test")]
-use defmt::info;
-use crate::cfg::OS_ARENA_SIZE;
 
 /*
 ********************************************************************************************************************************************
@@ -37,7 +35,6 @@ use crate::cfg::OS_ARENA_SIZE;
 pub static ARENA: Arena<{ OS_ARENA_SIZE }> = Arena::new();
 
 /// The stack allocator defination of uC/OS-II.
-
 pub struct Arena<const N: usize> {
     buf: UnsafeCell<MaybeUninit<[u8; N]>>,
     ptr: Mutex<Cell<*mut u8>>,
@@ -82,8 +79,6 @@ impl<const N: usize> Arena<N> {
         let ptr = unsafe { ptr.add(align_offset + layout.size()) };
 
         self.ptr.borrow(cs).set(ptr);
-        // #[cfg(feature = "alarm_test")]
-        // info!("alloc: {} -> {}", res, ptr);
         unsafe { &mut *(res as *mut MaybeUninit<T>) }
     }
     /// deallocate the most recently allocated memory block

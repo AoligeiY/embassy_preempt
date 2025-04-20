@@ -184,51 +184,51 @@ pub fn init_core_peripherals() {
     }
 }
 
-const SYSCLK_Frequency: u32 = 84_000_000;
-const OS_TICKS_PER_SEC: u32 = 1_000;
+// const SYSCLK_Frequency: u32 = 84_000_000;
+// const OS_TICKS_PER_SEC: u32 = 1_000;
 
-/// init systick
-pub fn init_systick() {
+// /// init systick
+// pub fn init_systick() {
 
-    let mut p = Peripherals::take().unwrap();
+//     let mut p = Peripherals::take().unwrap();
 
-    unsafe {
-        // clear cnt value
-        p.SYST.clear_current();
+//     unsafe {
+//         // clear cnt value
+//         p.SYST.clear_current();
 
-        // set the ARR to 84000 
-        p.SYST.set_reload(SYSCLK_Frequency/OS_TICKS_PER_SEC);   // 1ms
+//         // set the ARR to 84000 
+//         p.SYST.set_reload(SYSCLK_Frequency/OS_TICKS_PER_SEC);   // 1ms
 
-        // set SYSTICK's priority to 14
-        p.SCB.set_priority(SystemHandler::SysTick, 0xe<<4); // 240
+//         // set SYSTICK's priority to 14
+//         p.SCB.set_priority(SystemHandler::SysTick, 0xe<<4); // 240
 
-        // selecting the clock source
-        p.SYST.set_clock_source(syst::SystClkSource::Core); // 84M
+//         // selecting the clock source
+//         p.SYST.set_clock_source(syst::SystClkSource::Core); // 84M
 
-        // enable systick counter
-        p.SYST.enable_counter();
+//         // enable systick counter
+//         p.SYST.enable_counter();
 
-        // enable systick interrupt
-        p.SYST.enable_interrupt();
+//         // enable systick interrupt
+//         p.SYST.enable_interrupt();
 
-    }
-}
-#[warn(unused_unsafe)]
-/// test systick whether or not work
-pub fn test_systick() {
+//     }
+// }
+// #[warn(unused_unsafe)]
+// /// test systick whether or not work
+// pub fn test_systick() {
 
-    unsafe {
+//     unsafe {
         
-        #[cfg(feature = "alarm_test")]
-        info!("systick count is {}", SYST::get_current());
-        #[cfg(feature = "alarm_test")]
-        info!("systick count is {}", SYST::get_reload());
+//         #[cfg(feature = "alarm_test")]
+//         info!("systick count is {}", SYST::get_current());
+//         #[cfg(feature = "alarm_test")]
+//         info!("systick count is {}", SYST::get_reload());
        
-    }
-}
+//     }
+// }
 
-use cortex_m_rt::exception;
-#[exception]
-fn SysTick() {
+// use cortex_m_rt::exception;
+// #[exception]
+// fn SysTick() {
     
-}
+// }

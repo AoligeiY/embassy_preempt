@@ -9,7 +9,7 @@ use core::ffi::c_void;
 #[cfg(feature = "alarm_test")]
 use defmt::trace;
 use embassy_preempt::os_core::{OSInit, OSStart};
-use embassy_preempt::os_task::AsyncOSTaskCreate;
+use embassy_preempt::executor::AsyncOSTaskCreate;
 use embassy_preempt::os_time::timer::Timer;
 use embassy_preempt::pac::{gpio, GPIOA, RCC};
 use embassy_preempt::port::bottom_driver::Bottom::bottom;
