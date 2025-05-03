@@ -1,3 +1,4 @@
+//! the mod of uC/OS-II kernel
 /*
 *********************************************************************************************************
 *                                              uC/OS-II
@@ -46,9 +47,8 @@ use defmt::trace;
 // use core::cell::RefCell;
 use os_cpu::*;
 
-use crate::heap::Init_Heap;
+use crate::executor::mem::heap::{Init_Heap, OS_InitStackAllocator};
 use crate::executor::GlobalSyncExecutor;
-use crate::heap::stack_allocator::OS_InitStackAllocator;
 use crate::executor::SyncOSTaskCreate;
 #[cfg(feature = "alarm_test")]
 use crate::os_time::blockdelay;
@@ -58,8 +58,8 @@ use crate::port::*;
 #[cfg(feature = "OS_TASK_NAME_EN")]
 use crate::executor::OSTaskNameSet;
 #[cfg(feature = "OS_TASK_REG_TBL_SIZE")]
-use crate::ucosii::OSTaskRegNextAvailID;
-use crate::ucosii::{
+use crate::cfg::ucosii::OSTaskRegNextAvailID;
+use crate::cfg::ucosii::{
     OSCtxSwCtr, OSIdleCtr, OSIntNesting, OSLockNesting, OSRunning, OSTaskCtr, OSTime, OS_TASK_IDLE_PRIO,
 };
 
@@ -396,7 +396,7 @@ pub fn OSSchedUnlock() {
 // #[cfg(not(feature = "test"))]
 #[no_mangle]
 pub extern "C" fn OSStart() -> ! {
-    use crate::heap::stack_allocator::INTERRUPT_STACK;
+    use crate::executor::mem::heap::stack_allocator::INTERRUPT_STACK;
 
     extern "Rust" {
         fn set_int_change_2_psp(int_ptr: *mut u8);

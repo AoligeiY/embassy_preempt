@@ -30,7 +30,7 @@
 
 use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8};
 use crate::cfg::*;
-use crate::port::*;
+// use crate::port::*;
 
 /*
 *********************************************************************************************************
@@ -61,9 +61,10 @@ pub(crate) const OS_TASK_STAT_PRIO: OS_PRIO = OS_LOWEST_PRIO - 1; /* Statistic t
 pub(crate) const OS_TASK_IDLE_PRIO: OS_PRIO = OS_LOWEST_PRIO; /* IDLE      task priority                     */
 
 #[cfg(feature = "OS_PRIO_LESS_THAN_64")]
-const OS_EVENT_TBL_SIZE: USIZE = (OS_LOWEST_PRIO / 8 + 1) as USIZE; /* Size of event table                         */
+/// Size of event table                         
+pub const OS_EVENT_TBL_SIZE: USIZE = (OS_LOWEST_PRIO / 8 + 1) as USIZE; 
 #[cfg(feature = "OS_PRIO_LESS_THAN_256")]
-const OS_EVENT_TBL_SIZE: USIZE = OS_LOWEST_PRIO / 16 + 1; /* Size of event table                         */
+pub const OS_EVENT_TBL_SIZE: USIZE = OS_LOWEST_PRIO / 16 + 1; /* Size of event table                         */
 
 /// Size of ready table
 #[allow(unused)]
@@ -194,9 +195,11 @@ const OS_FLAG_SET: INT32U = 1;
 */
 
 #[allow(unused)]
-const OS_DEL_NO_PEND: INT32U = 0;
+/// delete event implementation only if no task pending
+pub const OS_DEL_NO_PEND: INT32U = 0;
 #[allow(unused)]
-const OS_DEL_ALWAYS: INT32U = 1;
+/// deletes the event implementation even if tasks are waiting.
+pub const OS_DEL_ALWAYS: INT32U = 1;
 
 /*
 *********************************************************************************************************
@@ -507,32 +510,32 @@ compile_error!("You may not enable both `OS_PRIO_LESS_THAN_64` and `OS_PRIO_LESS
 *********************************************************************************************************
 */
 
-/// the ref of ECB
-#[cfg(feature = "OS_EVENT_EN")]
-#[allow(unused)]
-pub struct OS_EVENT_REF {
-    ptr: NonNull<OS_EVENT>,
-}
+// /// the ref of ECB
+// #[cfg(feature = "OS_EVENT_EN")]
+// #[allow(unused)]
+// pub struct OS_EVENT_REF {
+//     ptr: NonNull<OS_EVENT>,
+// }
 
-/// the value of osevent_ptr, which can be a message or a queue structure
-#[cfg(feature = "OS_EVENT_EN")]
-pub enum ECBPTR {
-    /// the event ptr
-    Event(OS_EVENT_REF),
-}
+// /// the value of osevent_ptr, which can be a message or a queue structure
+// #[cfg(feature = "OS_EVENT_EN")]
+// pub enum ECBPTR {
+//     /// the event ptr
+//     Event(OS_EVENT_REF),
+// }
 
-// only need to expose to current crate
-#[cfg(feature = "OS_EVENT_EN")]
-#[allow(unused)]
-pub(crate) struct OS_EVENT {
-    OSEventType: INT8U,         /* Type of event control block (see OS_EVENT_TYPE_xxxx)    */
-    OSEventPtr: Option<ECBPTR>, /* Pointer to message or queue structure                   */
-    OSEventCnt: INT16U,         /* Semaphore Count (not used if other EVENT type)          */
-    OSEventGrp: OS_PRIO,        /* Group corresponding to tasks waiting for event to occur */
-    OSEventTbl: [OS_PRIO; OS_EVENT_TBL_SIZE as usize], /* List of tasks waiting for event to occur                */
-    #[cfg(feature = "OS_EVENT_NAME_EN")]
-    OSEventName: str, // the name of the event
-}
+// // only need to expose to current crate
+// #[cfg(feature = "OS_EVENT_EN")]
+// #[allow(unused)]
+// pub(crate) struct OS_EVENT {
+//     OSEventType: INT8U,         /* Type of event control block (see OS_EVENT_TYPE_xxxx)    */
+//     OSEventPtr: Option<ECBPTR>, /* Pointer to message or queue structure                   */
+//     OSEventCnt: INT16U,         /* Semaphore Count (not used if other EVENT type)          */
+//     OSEventGrp: OS_PRIO,        /* Group corresponding to tasks waiting for event to occur */
+//     OSEventTbl: [OS_PRIO; OS_EVENT_TBL_SIZE as usize], /* List of tasks waiting for event to occur                */
+//     #[cfg(feature = "OS_EVENT_NAME_EN")]
+//     OSEventName: str, // the name of the event
+// }
 
 /*
 *********************************************************************************************************

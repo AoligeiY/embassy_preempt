@@ -17,7 +17,7 @@ use stm32_metapac::GPIOC;
 use super::{DISENABLE, ENABLE};
 use crate::executor::{wake_task_no_pend, GlobalSyncExecutor, task::OS_TCB_REF};
 use crate::pac::Interrupt;
-use crate::util::SyncUnsafeCell;
+use crate::executor::cell::SyncUnsafeCell;
 
 /// async bottom
 pub mod Bottom;

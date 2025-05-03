@@ -7,7 +7,9 @@ pub mod timer_queue;
 pub mod waker;
 pub mod task;
 pub mod os_task;
-mod arena;
+pub mod os_core;
+pub mod cell;
+pub mod mem;
 // use alloc::string::String;
 use core::alloc::Layout;
 // use core::future::Future;
@@ -27,18 +29,20 @@ use state::State;
 use time_driver::{AlarmHandle, Driver, RTC_DRIVER};
 use task::{OS_TCB, OS_TCB_REF};
 pub use os_task::*;
+pub use os_core::*;
 
 pub use self::waker::task_from_waker;
 use crate::app::led::{stack_pin_high, stack_pin_low};
 // use arena::ARENA;
 use crate::cfg::*;
-use crate::heap::stack_allocator::{alloc_stack, dealloc_stack, OS_STK_REF, PROGRAM_STACK, TASK_STACK_SIZE};
+use crate::executor::mem::heap::{alloc_stack, OS_STK_REF, PROGRAM_STACK, TASK_STACK_SIZE};
 
 #[cfg(feature = "delay_idle")]
 use crate::os_time::blockdelay::delay;
 use crate::port::*;
-use crate::ucosii::*;
-use crate::util::SyncUnsafeCell;
+// use crate::ucosii::*;
+use crate::cfg::ucosii::*;
+use crate::executor::cell::SyncUnsafeCell;
 
 /*
 ****************************************************************************************************************************************

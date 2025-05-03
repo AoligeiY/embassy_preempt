@@ -1,7 +1,11 @@
 use crate::port::*;
-use crate::ucosii::OS_PRIO;
-use crate::sync::UPSafeCell;
+use crate::executor::cell::UPSafeCell;
+use ucosii::OS_PRIO;
 
+/// the mod which define the data structure of uC/OS-II kernel
+pub mod ucosii; 
+
+/// timer timebase tick
 mod tick;
 
 // TODO: Make all the config to be feature!!!
@@ -14,6 +18,8 @@ pub const OS_TASK_REG_TBL_SIZE: USIZE = 1;
 pub const OS_MAX_MEM_PART: USIZE = 5;
 /// Max. number of tasks in your application, MUST be >= 2
 // pub const OS_MAX_TASKS: USIZE = 20;
+// Max. number of event control blocks in your application
+pub const OS_MAX_EVENTS: USIZE = 20;
 /// This const val is used to config the size of ARENA.
 /// You can set it refer to the number of tasks in your application(OS_MAX_TASKS) and the number of system tasks(OS_N_SYS_TASKS).
 pub const OS_ARENA_SIZE: USIZE = 10240;
@@ -34,7 +40,6 @@ lazy_static::lazy_static! {
         UPSafeCell::new(0)
     };
 }
-
 
 /// the block delay of idle task in poll
 #[cfg(feature = "delay_idle")]

@@ -14,8 +14,8 @@ use defmt::{info, trace};
 use super::OS_STK;
 use crate::app::led::{stack_pin_high, stack_pin_low};
 use crate::executor::GlobalSyncExecutor;
-use crate::heap::stack_allocator::{INTERRUPT_STACK, PROGRAM_STACK};
-use crate::ucosii::OSCtxSwCtr;
+use crate::executor::mem::heap::{INTERRUPT_STACK, PROGRAM_STACK};
+use crate::cfg::ucosii::OSCtxSwCtr;
 
 /// finish the init part of the CPU/MCU
 pub fn OSInitHookBegin() {}
@@ -90,7 +90,7 @@ fn PendSV() {
     #[cfg(feature = "defmt")]
     info!("OSCtxSwCtr is {}", OSCtxSwCtr.load(core::sync::atomic::Ordering::SeqCst));
 
-    let stk_ptr: crate::heap::stack_allocator::OS_STK_REF = global_executor.OSTCBHighRdy.get_mut().take_stk();
+    let stk_ptr: crate::executor::mem::heap::OS_STK_REF = global_executor.OSTCBHighRdy.get_mut().take_stk();
     let stk_heap_ref = stk_ptr.HEAP_REF;
     let program_stk_ptr = stk_ptr.STK_REF.as_ptr();
     // the swap will return the ownership of PROGRAM_STACK's original value and set the new value(check it when debuging!!!)

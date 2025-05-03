@@ -12,6 +12,7 @@ use core::ptr::NonNull;
 #[allow(unused_imports)]
 use defmt::{info,trace};
 
+
 use super::fixed_size_block::FixedSizeBlockAllocator;
 use super::Locked;
 
@@ -22,7 +23,7 @@ pub const INTERRUPT_STACK_SIZE: usize = 2048; // 1 KiB
 pub const TASK_STACK_SIZE: usize = PROGRAM_STACK_SIZE; // currently we set it to the same as the program stack
 
 use crate::port::OS_STK;
-use crate::sync::UPSafeCell;
+use crate::executor::cell::UPSafeCell;
 static STACK_ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
 lazy_static::lazy_static! {
     pub static ref PROGRAM_STACK: UPSafeCell<OS_STK_REF> = unsafe {

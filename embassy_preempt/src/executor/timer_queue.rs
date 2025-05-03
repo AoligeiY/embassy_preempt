@@ -4,7 +4,7 @@
 use defmt::{trace,info};
 
 use super::OS_TCB_REF;
-use crate::util::SyncUnsafeCell;
+use crate::executor::cell::SyncUnsafeCell;
 
 pub(crate) struct TimerQueue {
     head: SyncUnsafeCell<Option<OS_TCB_REF>>,   // head of the timer queue, indicating the earliest arriving task

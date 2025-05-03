@@ -5,11 +5,11 @@ use defmt::{info, trace};
 use defmt::{info, trace};
 use core::sync::atomic::Ordering;
 
-use crate::executor::{self, wake_task_no_pend, GlobalSyncExecutor};
+use crate::executor::{wake_task_no_pend, GlobalSyncExecutor};
 use crate::port::time_driver::{Driver, RTC_DRIVER};
 use crate::port::{INT8U, INT64U, USIZE};
 use crate::cfg::{TICK_HZ, OS_LOWEST_PRIO};
-use crate::ucosii::{OSRunning, OSIntNesting, OSLockNesting, OS_ERR_STATE};
+use crate::cfg::ucosii::{OSRunning, OSIntNesting, OSLockNesting, OS_ERR_STATE};
 /// the mod of blockdelay of uC/OS-II kernel
 pub mod blockdelay;
 /// the mod of duration of uC/OS-II kernel

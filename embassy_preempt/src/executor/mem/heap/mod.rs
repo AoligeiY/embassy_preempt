@@ -1,3 +1,5 @@
+//! the allocator of the heap
+
 /// Linked_List_Allocator for [no_std]
 pub mod linked_list;
 /// Block_Allocator based on Linked_List_Allocator
@@ -5,6 +7,7 @@ pub mod fixed_size_block;
 /// Stack_Allocator for OS_STK
 pub mod stack_allocator;
 
+pub use stack_allocator::*;
 use fixed_size_block::FixedSizeBlockAllocator;
 
 // pub const HEAP_START: *mut u8 = 0x08000200 as *mut u8;

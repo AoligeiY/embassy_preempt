@@ -8,7 +8,7 @@ use core::ffi::c_void;
 #[cfg(feature = "alarm_test")]
 use defmt::info;
 use embassy_preempt::app::led::{LED_Init, LED_OFF, LED_ON};
-use embassy_preempt::os_core::{OSInit, OSStart};
+use embassy_preempt::executor::{OSInit, OSStart};
 use embassy_preempt::executor::SyncOSTaskCreate;
 use embassy_preempt::port::bottom_driver::OSWaitBot;
 // use embassy_preempt::os_time::timer::Timer;

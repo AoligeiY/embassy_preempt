@@ -9,14 +9,14 @@ use core::mem;
 
 use super::waker;
 use super::State;
-use super::arena::ARENA;
 use super::GlobalSyncExecutor;
 
-use crate::heap::stack_allocator::OS_STK_REF;
+use crate::executor::mem::arena::ARENA;
+use crate::executor::mem::heap::OS_STK_REF;
 use crate::port::{INT8U, INT16U, INT32U, PTR};
-use crate::ucosii::OS_ERR_STATE;
+use crate::cfg::ucosii::OS_ERR_STATE;
 use crate::cfg::OS_TASK_REG_TBL_SIZE;
-use crate::util::{SyncUnsafeCell, UninitCell};
+use crate::executor::cell::{SyncUnsafeCell, UninitCell};
 
 #[cfg(feature = "alarm_test")]
 use defmt::{trace,info};

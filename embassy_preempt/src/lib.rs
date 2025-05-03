@@ -25,18 +25,20 @@
 use defmt_rtt as _; 
 // global logger
 pub extern crate alloc;
-/// the mod of uC/OS-II kernel
-pub mod os_core;
-/// the mod of flag of uC/OS-II kernel
-pub mod os_flag;
-/// the mod of mailbox of uC/OS-II kernel
-pub mod os_mbox;
-/// the mod of memory management of uC/OS-II kernel
-pub mod os_mem;
-/// the mod of mutex of uC/OS-II kernel
-pub mod os_mutex;
-/// the mod of queue of uC/OS-II kernel
-pub mod os_q;
+// /// the mod of uC/OS-II kernel
+// pub mod os_core;
+
+// /// the mod of flag of uC/OS-II kernel
+// pub mod os_flag;
+// /// the mod of mailbox of uC/OS-II kernel
+// pub mod os_mbox;
+// /// the mod of memory management of uC/OS-II kernel
+// pub mod os_mem;
+// /// the mod of mutex of uC/OS-II kernel
+// pub mod os_mutex;
+// /// the mod of queue of uC/OS-II kernel
+// pub mod os_q;
+
 // /// the mod of task of uC/OS-II kernel
 // pub mod os_task;
 // /// the stk allocator
@@ -45,8 +47,8 @@ pub mod os_q;
 pub mod cfg;
 /// the async scheduler(executor) of rust uC
 pub mod executor;
-/// the mod of semaphore of uC/OS-II kernel
-pub mod os_sem;
+// /// the mod of semaphore of uC/OS-II kernel
+// pub mod os_sem;
 // /// the task interface of uC/OS-II kernel
 // pub mod os_task;
 /// the mod of time of uC/OS-II kernel
@@ -55,20 +57,23 @@ pub mod os_time;
 pub mod os_tmr;
 /// need to import port here
 pub mod port;
-/// the mod which define the data structure of uC/OS-II kernel
-pub mod ucosii;
+// /// the mod which define the data structure of uC/OS-II kernel
+// pub mod ucosii;
 /// the the macro of atomic operation
 #[macro_use]
 /// the atomic_macros module is used to define atomic operations
 pub mod atomic_macros;
-
-mod heap;
+/// the mod of event of uC/OS-II kernel
+pub mod event;
+// mod heap;
+// /// the mod of mem management of uC/OS-II kernel
+// pub mod mem;
 
 /// the apps
 pub mod app;
-mod sync;
+/// about rust's Cell 
+// mod cell;
 
-mod util;
 
 // This must go last, so that it sees all the impl_foo! macros defined earlier.
 // pub(crate) mod _generated {

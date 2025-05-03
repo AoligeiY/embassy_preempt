@@ -2,7 +2,7 @@ use core::cell::UnsafeCell;
 use core::mem::MaybeUninit;
 use core::ptr;
 
-pub(crate) struct UninitCell<T>(MaybeUninit<UnsafeCell<T>>);
+pub struct UninitCell<T>(MaybeUninit<UnsafeCell<T>>);
 
 #[allow(unused)]
 impl<T> UninitCell<T> {

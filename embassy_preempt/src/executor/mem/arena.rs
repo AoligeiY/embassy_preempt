@@ -1,4 +1,4 @@
-//! the allocator of the stack this crate only will be used by executor
+//! the allocator of TCB only will be used by executor
 
 /*
 ****************************************************************************************************************************************

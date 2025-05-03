@@ -21,9 +21,9 @@ use core::sync::atomic::Ordering;
 use super::{GlobalSyncExecutor, OS_TCB_REF, task::OS_TASK_STORAGE};
 
 use crate::cfg::{OS_LOWEST_PRIO, OS_TASK_REG_TBL_SIZE};
-use crate::heap::stack_allocator::{dealloc_stack, stk_from_ptr};
+use crate::executor::mem::heap::{dealloc_stack, stk_from_ptr};
 use crate::port::{INT8U, USIZE, OS_STK};
-use crate::ucosii::{OS_PRIO_SELF, OS_TASK_IDLE_PRIO, OSRunning, OSIntNesting, OSTaskCtr, OS_ERR_STATE};
+use crate::cfg::ucosii::{OS_PRIO_SELF, OS_TASK_IDLE_PRIO, OSRunning, OSIntNesting, OSTaskCtr, OS_ERR_STATE};
 
 #[cfg(feature = "defmt")]
 #[allow(unused)]
