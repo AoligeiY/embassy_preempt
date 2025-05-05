@@ -12,17 +12,19 @@ pub mod os_mutex;
 pub mod os_q;
 
 use core::ptr::NonNull;
+#[cfg(feature = "OS_EVENT_NAME_EN")]
 use alloc::string::String;
 use core::ops::{Deref, DerefMut};
 
-use crate::cfg::OS_MAX_EVENTS;
-use crate::port::INT16U;
-use crate::cfg::ucosii::{OS_PRIO, OS_EVENT_TBL_SIZE};
-use crate::executor::cell::SyncUnsafeCell;
-use crate::executor::mem::arena::ARENA;
-
 use lazy_static::lazy_static;
 use critical_section::{self, CriticalSection};
+
+use crate::cfg::{OS_MAX_EVENTS, OS_LOWEST_PRIO};
+use crate::port::INT16U;
+use crate::cfg::ucosii::{OS_PRIO, OS_EVENT_TBL_SIZE};
+use crate::executor::{GlobalSyncExecutor, OSUnMapTbl};
+use crate::executor::{cell::SyncUnsafeCell, task::OS_TCB_REF, mem::arena::ARENA};
+
 
 /*
 *********************************************************************************************************
@@ -41,7 +43,7 @@ pub struct OS_EVENT {
     pub OSEventCnt: INT16U,         /* Semaphore Count (not used if other EVENT type)          */
     pub OSEventGrp: OS_PRIO,        /* Group corresponding to tasks waiting for event to occur */
     pub OSEventTbl: [OS_PRIO; OS_EVENT_TBL_SIZE as usize], /* List of tasks waiting for event to occur                */
-    // #[cfg(feature = "OS_EVENT_NAME_EN")]
+    #[cfg(feature = "OS_EVENT_NAME_EN")]
     pub OSEventName: String, // the name of the event
 }
 
@@ -88,7 +90,7 @@ impl OS_EVENT {
             OSEventCnt: 0,
             OSEventGrp: 0,
             OSEventTbl: [0; OS_EVENT_TBL_SIZE as usize],
-            // #[cfg(feature = "OS_EVENT_NAME_EN")]
+            #[cfg(feature = "OS_EVENT_NAME_EN")]
             OSEventName: String::new(),
         }
     }
@@ -198,9 +200,23 @@ impl EventPool {
             }
             let mut event_ref = free_list.unwrap();
             // if the free list is empty, then we need to allocate a new event
-            if event_ref.ptr.is_none() && event_ref.OSEventType == OS_EVENT_TYPE::UNUSED {
+            if event_ref.ptr.is_none() && event_ref.OSEventType == OS_EVENT_TYPE::UNUSED 
+            {
                 event_ref = EventPool::claim(cs);
-            } else {
+            } 
+            else if event_ref.ptr.is_some() && event_ref.OSEventType == OS_EVENT_TYPE::UNUSED 
+            {
+                // this event has been free before 
+                event_ref.OSEventCnt = 0;
+                event_ref.OSEventGrp = 0;
+                event_ref.OSEventTbl = [0; OS_EVENT_TBL_SIZE as usize];
+                #[cfg(feature = "OS_EVENT_NAME_EN")]
+                {
+                    event_ref.OSEventName = String::from("?");
+                }
+            } 
+            else 
+            {
                 // this is error
                 return None;
             }
@@ -228,5 +244,60 @@ impl EventPool {
         OS_EVENT_REF { 
             ptr: Some(NonNull::new(event as *mut _ as _).unwrap()) 
         }
+    }
+}
+
+// #[cfg(feature = "OS_EVENT_EN")]
+/// used to ready a task that was waiting for an event to occur
+pub fn OS_EventTaskRdy(pevent: OS_EVENT_REF) {
+    let mut prio: u8 = 0;
+    if OS_LOWEST_PRIO <= 63 {
+        // find HPT waiting for message
+        let y = OSUnMapTbl[pevent.OSEventGrp as usize];
+        let x = OSUnMapTbl[pevent.OSEventTbl[y as usize] as usize];
+        // find priority of task getting the msg
+        prio = (y << 3) + x;
+    }
+
+    let executor = GlobalSyncExecutor.as_ref().unwrap();
+    let prio_tbl = executor.get_prio_tbl();
+    let ptcb = prio_tbl[prio as usize];
+
+    unsafe{ 
+        ptcb.expires_at.set(u64::MAX); 
+        // put task in the ready to run list
+        executor.enqueue(ptcb); 
+    }
+    // remove this task from event wait list
+    OS_EventTaskRemove(ptcb, pevent);
+}
+
+// #[cfg(feature = "OS_EVENT_EN")]
+/// suspend a task because an event has not occurred
+pub fn OS_EventTaskWait(mut pevent: OS_EVENT_REF) {
+    let executor = GlobalSyncExecutor.as_ref().unwrap();
+    let task = executor.OSTCBCur.get_unmut();
+    unsafe {
+        // store ptr to ECB in TCB
+        task.OSTCBEventPtr.set(Some(pevent));
+        // task no longer ready
+        executor.set_task_unready(*task);
+    }
+    // put task in waiting list
+    pevent.OSEventTbl[task.OSTCBY as usize] |= task.OSTCBX;
+    pevent.OSEventGrp |= task.OSTCBY;
+}
+
+// #[cfg(feature = "OS_EVENT_EN")]
+/// remove a task from an event's wait list
+pub fn OS_EventTaskRemove(ptcb: OS_TCB_REF, mut pevent: OS_EVENT_REF) {
+    let y = ptcb.OSTCBY;
+    // remove task from wait list
+    pevent.OSEventTbl[y as usize] &= !ptcb.OSTCBX;
+    if pevent.OSEventTbl[y as usize] == 0 {
+        pevent.OSEventGrp &= !ptcb.OSTCBY;
+    }
+    unsafe {
+        ptcb.OSTCBEventPtr.set(None);
     }
 }

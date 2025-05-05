@@ -17,6 +17,8 @@ use crate::port::{INT8U, INT16U, INT32U, PTR};
 use crate::cfg::ucosii::OS_ERR_STATE;
 use crate::cfg::OS_TASK_REG_TBL_SIZE;
 use crate::executor::cell::{SyncUnsafeCell, UninitCell};
+#[cfg(feature = "OS_EVENT_EN")]
+use crate::event::OS_EVENT_REF;
 
 #[cfg(feature = "alarm_test")]
 use defmt::{trace,info};
@@ -28,32 +30,32 @@ use defmt::{trace,info};
 // we put it in executor crate to use "pub(crate)" to make it can be used in the other mod in order to reduce coupling
 pub struct OS_TCB {
     // it maybe None
-    pub(super)  OSTCBStkPtr: Option<OS_STK_REF>, /* Pointer to current top of stack                         */
+    pub(crate)  OSTCBStkPtr: Option<OS_STK_REF>, /* Pointer to current top of stack                         */
     // Task specific extension. If the OS_TASK_CREATE_EXT_EN feature is not active, it will be None
     #[cfg(feature = "OS_TASK_CREATE_EXT_EN")]
-    pub(super) OSTCBExtInfo: OS_TCB_EXT,
+    pub(crate) OSTCBExtInfo: OS_TCB_EXT,
 
-    pub(super) OSTimerNext: SyncUnsafeCell<Option<OS_TCB_REF>>, /* Pointer to next     TCB in the Timer list                 */
-    pub(super) OSTimerPrev: SyncUnsafeCell<Option<OS_TCB_REF>>, /* Pointer to previous TCB in the Timer list                 */
+    pub(crate) OSTimerNext: SyncUnsafeCell<Option<OS_TCB_REF>>, /* Pointer to next     TCB in the Timer list                 */
+    pub(crate) OSTimerPrev: SyncUnsafeCell<Option<OS_TCB_REF>>, /* Pointer to previous TCB in the Timer list                 */
 
     // the poll fn that will be called by the executor. In the func, a waker will be create.
-    pub(super) OS_POLL_FN: SyncUnsafeCell<Option<unsafe fn(OS_TCB_REF)>>,
+    pub(crate) OS_POLL_FN: SyncUnsafeCell<Option<unsafe fn(OS_TCB_REF)>>,
 
     #[cfg(feature = "OS_EVENT_EN")]
-    pub(super) OSTCBEventPtr: Option<OS_EVENT_REF>, /* Pointer to event control block                */
+    pub(crate) OSTCBEventPtr: SyncUnsafeCell<Option<OS_EVENT_REF>>, /* Pointer to event control block                */
 
     #[cfg(any(all(feature = "OS_Q_EN", feature = "OS_MAX_QS"), feature = "OS_MBOX_EN"))]
-    pub(super) OSTCBMsg: PTR, /* Message received from OSMboxPost() or OSQPost()         */
+    pub(crate) OSTCBMsg: PTR, /* Message received from OSMboxPost() or OSQPost()         */
 
-    pub(super) OSTCBDly: INT32U, /* Nbr ticks to delay task or, timeout waiting for event   */
-    pub(super) OSTCBStat: State, /* Task      status                                        */
+    pub(crate) OSTCBDly: INT32U, /* Nbr ticks to delay task or, timeout waiting for event   */
+    pub(crate) OSTCBStat: State, /* Task      status                                        */
     
-    pub(super) OSTCBPrio: INT8U, /* Task priority (0 == highest)                            */
+    pub(crate) OSTCBPrio: INT8U, /* Task priority (0 == highest)                            */
 
-    pub(super) OSTCBX: INT8U,    /* Bit position in group  corresponding to task priority   */
-    pub(super) OSTCBY: INT8U,    /* Index into ready table corresponding to task priority   */
-    pub(super) OSTCBBitX: INT8U, /* Bit mask to access bit position in ready table          */
-    pub(super) OSTCBBitY: INT8U, /* Bit mask to access bit position in ready group          */
+    pub(crate) OSTCBX: INT8U,    /* Bit position in group  corresponding to task priority   */
+    pub(crate) OSTCBY: INT8U,    /* Index into ready table corresponding to task priority   */
+    pub(crate) OSTCBBitX: INT8U, /* Bit mask to access bit position in ready table          */
+    pub(crate) OSTCBBitY: INT8U, /* Bit mask to access bit position in ready group          */
 
     #[cfg(feature = "OS_TASK_DEL_EN")]
     OSTCBDelReq: INT8U, /* Indicates whether a task needs to delete itself         */
@@ -70,10 +72,10 @@ pub struct OS_TCB {
     OSTCBStkUsed: INT32U,             /* Number of bytes used from the stack                     */
     
     #[cfg(feature = "OS_TASK_NAME_EN")]
-    pub(super) OSTCBTaskName: String,
+    pub(crate) OSTCBTaskName: String,
     
     #[cfg(feature = "OS_TASK_REG_TBL_SIZE")]
-    pub(super) OSTCBRegTbl: [INT32U; OS_TASK_REG_TBL_SIZE],
+    pub(crate) OSTCBRegTbl: [INT32U; OS_TASK_REG_TBL_SIZE],
 
     pub(crate) expires_at: SyncUnsafeCell<u64>,     /* Time when the task should be woken up */
     pub(crate) is_in_thread_poll: SyncUnsafeCell<bool>,     /* Marking whether a task is a thread or a concatenation */
@@ -178,7 +180,7 @@ impl<F: Future + 'static> OS_TASK_STORAGE<F> {
                 OSTimerPrev: SyncUnsafeCell::new(None),
                 OS_POLL_FN: SyncUnsafeCell::new(None),
                 #[cfg(feature = "OS_EVENT_EN")]
-                OSTCBEventPtr: None,
+                OSTCBEventPtr: SyncUnsafeCell::new(None),
                 #[cfg(any(all(feature = "OS_Q_EN", feature = "OS_MAX_QS"), feature = "OS_MBOX_EN"))]
                 OSTCBMsg: 0 as PTR,
                 OSTCBDly: 0,

@@ -1,9 +1,11 @@
 use core::sync::atomic::Ordering;
 
-use crate::port::{INT8U, INT16U, BOOLEAN};
-use crate::event::{GlobalEventPool, OS_EVENT_REF, OS_EVENT_TYPE};
 use crate::cfg::ucosii::{OSIntNesting, OS_ERR_STATE, OS_DEL_NO_PEND, OS_DEL_ALWAYS};
+use crate::port::{INT8U, INT16U, BOOLEAN};
 use crate::executor::GlobalSyncExecutor;
+use crate::os_time::OSTimeDly;
+use crate::event::{GlobalEventPool, OS_EVENT_REF, OS_EVENT_TYPE};
+use crate::event::{OS_EventTaskWait, OS_EventTaskRdy};
 
 /// creates a semaphore
 pub fn OSSemCreate(cnt: INT16U) -> Option<OS_EVENT_REF> {
@@ -49,7 +51,8 @@ pub fn OSSemAccept(mut pevent: OS_EVENT_REF) -> INT16U {
     return cnt;
 }
 
-/// 
+// #[cfg(feature = "OS_SEM_DEL_EN")]
+/// deletes a semaphore and readies all tasks pending on the semaphore
 pub fn OSSemDel(mut pevent: OS_EVENT_REF, opt: INT8U) -> (OS_ERR_STATE, OS_EVENT_REF) {
     let mut pevent_return: OS_EVENT_REF = OS_EVENT_REF::default();
     #[cfg(feature = "OS_ARG_CHK_EN")]
@@ -63,7 +66,7 @@ pub fn OSSemDel(mut pevent: OS_EVENT_REF, opt: INT8U) -> (OS_ERR_STATE, OS_EVENT
     if pevent.OSEventType != OS_EVENT_TYPE::SEM {
         return (OS_ERR_STATE::OS_ERR_EVENT_TYPE, pevent);
     }
-    // See if called from ISR, can't DELETE from an ISR
+    // see if called from ISR, can't DELETE from an ISR
     if OSIntNesting.load(Ordering::Acquire) > 0 {
         return (OS_ERR_STATE::OS_ERR_DEL_ISR, pevent);
     }
@@ -90,7 +93,7 @@ pub fn OSSemDel(mut pevent: OS_EVENT_REF, opt: INT8U) -> (OS_ERR_STATE, OS_EVENT
             }
             OS_DEL_ALWAYS => {
                 while pevent.OSEventGrp != 0 {
-                    unimplemented!("Ready ALL tasks waiting for semaphore");
+                    OS_EventTaskRdy(pevent);
                 }
                 GlobalEventPool.as_ref().unwrap().free(pevent);
                 pevent.OSEventCnt = 0;
@@ -110,9 +113,75 @@ pub fn OSSemDel(mut pevent: OS_EVENT_REF, opt: INT8U) -> (OS_ERR_STATE, OS_EVENT
             }
         }
     });
-
     if result != OS_ERR_STATE::OS_ERR_NONE {
         return (result, pevent_return);
     }
     return (OS_ERR_STATE::OS_ERR_NONE, pevent_return);
+}
+
+/// waits for a semaphore
+pub fn OSSemPend(mut pevent: OS_EVENT_REF, timeout: INT16U) -> OS_ERR_STATE {
+    #[cfg(feature = "OS_ARG_CHK_EN")]
+    {
+        // validate 'pevent'
+        if pevent.ptr.is_none() {
+            return OS_ERR_STATE::OS_ERR_PEVENT_NULL;
+        }
+    }
+    // validate event block type
+    if pevent.OSEventType != OS_EVENT_TYPE::SEM {
+        return OS_ERR_STATE::OS_ERR_EVENT_TYPE;
+    }
+    // See if called from ISR
+    if OSIntNesting.load(Ordering::Acquire) > 0 {
+        return OS_ERR_STATE::OS_ERR_PEND_ISR;
+    }
+    let result = critical_section::with(|_| {
+        // decrement semaphore count
+        if pevent.OSEventCnt > 0 {
+            pevent.OSEventCnt -= 1;
+            return OS_ERR_STATE::OS_ERR_NONE;
+        }
+
+        // let executor = GlobalSyncExecutor.as_ref().unwrap();
+        // let task = executor.OSTCBCur.get_unmut();
+
+        // suspend task until event or timeout occurs
+        OS_EventTaskWait(pevent);
+
+        OSTimeDly(timeout as u64);
+
+        return OS_ERR_STATE::OS_ERR_NONE;
+    });
+    return result;
+}
+
+/// signals a semaphore
+pub fn OSSemPost(mut pevent: OS_EVENT_REF) -> OS_ERR_STATE {
+    #[cfg(feature = "OS_ARG_CHK_EN")]
+    {
+        // validate 'pevent'
+        if pevent.ptr.is_none() {
+            return OS_ERR_STATE::OS_ERR_PEVENT_NULL;
+        }
+    }
+    // validate event block type
+    if pevent.OSEventType != OS_EVENT_TYPE::SEM {
+        return OS_ERR_STATE::OS_ERR_EVENT_TYPE;
+    }
+    let result = critical_section::with(|_| {
+        if pevent.OSEventGrp != 0 {
+            OS_EventTaskRdy(pevent);       
+            unsafe { GlobalSyncExecutor.as_ref().unwrap().IntCtxSW(); } 
+            return OS_ERR_STATE::OS_ERR_NONE;
+        }
+        // make sure semaphore will not overflow
+        if pevent.OSEventCnt < 65535 {
+            // increment semaphore count to register event
+            pevent.OSEventCnt += 1;
+            return OS_ERR_STATE::OS_ERR_NONE;
+        }
+        return OS_ERR_STATE::OS_ERR_SEM_OVF;
+    });
+    return result;
 }

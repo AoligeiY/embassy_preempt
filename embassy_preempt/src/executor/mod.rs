@@ -163,7 +163,7 @@ impl SyncExecutor {
         let prio = prio * 8 + tmp[prio].trailing_zeros() as usize;
         prio as OS_PRIO
     }
-    pub(crate) unsafe fn set_task_unready(&self, task: OS_TCB_REF) {
+    pub unsafe fn set_task_unready(&self, task: OS_TCB_REF) {
         #[cfg(feature = "defmt")]
         trace!("set_task_unready");
         // added by liam: we have to make this process in critical section

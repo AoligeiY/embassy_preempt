@@ -73,7 +73,8 @@ use crate::cfg::ucosii::{
 */
 
 #[allow(unused)]
-const OSUnMapTbl: [INT8U; 256] = [
+/// Index into table is bit pattern to resolve highest priority
+pub const OSUnMapTbl: [INT8U; 256] = [
     0, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, /* 0x00 to 0x0F                   */
     4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, /* 0x10 to 0x1F                   */
     5, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, /* 0x20 to 0x2F                   */
