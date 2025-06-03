@@ -1,25 +1,29 @@
 [package]
-name = "STM32F4"
+name = "exam"
 version = "0.1.0"
 edition = "2021"
 
 
 [dependencies]
-embassy_preempt = { path = "../../embassy_preempt" , features = ["stm32f401re","memory-x","alarm_test"]} 
 cortex-m = { version = "0.7"}
 cortex-m-rt = { version = "0.7", features = ["device"]}
-
 defmt = { version = "0.3.0", optional = true}
 defmt-rtt = { version = "0.4", optional = true}
 panic-probe = { version = "0.3", features = ["print-defmt"], optional = true}
 
+critical-section = { version = "1.1", features=["restore-state-bool"]}
 
-# [dev-dependencies]
-# defmt-test = "0.3"
+executor = { path = "../modules/executor" , features = ["stm32f401re","memory-x"] }
+# executor = { path = "../modules/executor" , features = ["stm32f401re","memory-x","alarm_test"] }
+app = { path = "../modules/app" }
+
+# executor = { workspace = true, optional = true, features = ["stm32f401re","defmt"] }
+# app = { workspace = true, optional = true}
+
 
 # cargo build/run
 [profile.dev]
-codegen-units = 1   # 控制代码生成单元的数量
+codegen-units = 1           # 控制代码生成单元的数量
 debug = 0
 debug-assertions = true     # 启用调试断言
 incremental = false         # 禁用增量编译
@@ -36,4 +40,4 @@ lto = true      # 启用链接时优化
 [features]
 alarm_test = ["dep:defmt","panic-probe","defmt-rtt"]
 defmt = ["dep:defmt","panic-probe","defmt-rtt"]
-memory-x = ["embassy_preempt/memory-x"]     # If you have not added memory.x, you need to activate the feature
+memory-x = ["executor/memory-x"]     # If you have not added memory.x, you need to activate the feature

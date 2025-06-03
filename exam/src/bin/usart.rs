@@ -5,19 +5,22 @@
 // FFI接口
 use core::ffi::c_void;
 
-use embassy_preempt::executor::SyncOSTaskCreate;
-use embassy_preempt::executor::{OSInit, OSStart};
-use embassy_preempt::os_time::OSTimeDly;
-use embassy_preempt::pac::{usart, gpio, GPIOA, RCC, USART1};
+use executor::SyncOSTaskCreate;
+use executor::os_core::{OSInit, OSStart};
+use executor::os_time::OSTimeDly;
+use executor::pac::{usart, gpio, GPIOA, RCC, USART1};
+
 
 #[cfg(feature = "defmt")]
 use defmt::info;
 #[cfg(feature = "alarm_test")]
-use defmt::trace;
+use defmt::info;
 
 #[cortex_m_rt::entry]
 fn usart_test() -> ! {
-    
+    #[cfg(feature = "alarm_test")]
+    info!("OS Start");
+
     led_init();
     usart_init();
 
@@ -31,7 +34,7 @@ fn usart_test() -> ! {
 
 fn task1(_args: *mut c_void) {
     loop {
-        #[cfg(feature = "defmt")]
+        #[cfg(feature = "alarm_test")]
         info!("usart_test");
        usart_send_byte(b'A');
        OSTimeDly(400 * 100);
@@ -40,8 +43,6 @@ fn task1(_args: *mut c_void) {
 
 fn task2(_args: *mut c_void) {
     loop {
-        #[cfg(feature = "alarm_test")]
-        trace!("OS Start");
         led_on();
         OSTimeDly(500 * 100);
         led_off();
