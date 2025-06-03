@@ -1,0 +1,107 @@
+[package]
+name = "executor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-m = { version = "0.7"}
+cortex-m-rt = { version = "0.7", features = ["device"]}
+critical-section = { version = "1.1", features=["restore-state-bool"]}
+
+defmt = { version = "0.3", optional = true}
+defmt-rtt = { version = "0.4", optional = true}
+panic-probe = { version = "0.3", features = ["print-defmt"], optional = true}
+
+log = { version = "0.4.14", optional = true }
+spin = "0.5.2"
+lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
+cortex-m-semihosting = "0.5.0"
+stm32-metapac = { git = "https://github.com/embassy-rs/stm32-data-generated", tag = "stm32-data-e0cfd165fd8fffaa0df66a35eeca83b228496645", features = ["metadata"]}
+
+cfg = { path = "../cfg" }
+cell = { path = "../cell" }
+port = { path = "../port" , features = ["alarm_test"] }
+app = { path = "../app" , features = ["stm32f401re"] }
+
+[dependencies.spinning_top]
+version = "0.2.5"
+optional = true
+
+
+[features]
+default = ["rt","cortex_m","stm32f401re","GPIOC","use_spin","unstable-pac","time_driver_tim3","OS_STACK_LESS_THAN_64","OS_MEM_EN", "OS_PRIO_LESS_THAN_64", "OS_ARG_CHK_EN","OS_SCHED_LOCK_EN","OS_TIME_GET_SET_EN","OS_TASK_CREATE_EXT_EN","OS_TASK_REG_TBL_SIZE","OS_TIME_DLY_HMSM_EN"]
+nightly = []
+defmt = ["dep:defmt","panic-probe","defmt-rtt"]
+alarm_test = ["dep:defmt","panic-probe","defmt-rtt"]
+
+cortex_m = []
+## Re-export stm32-metapac at `embassy_stm32::pac`.
+## This is unstable because semver-minor (non-breaking) releases of embassy-stm32 may major-bump (breaking) the stm32-metapac version.
+## If this is an issue for you, you're encouraged to directly depend on a fixed version of the PAC.
+## There are no plans to make this stable.
+unstable-pac = []
+use_spin = ["spinning_top"]     ## Abort the Linked_List_Allocator
+memory-x = ["stm32-metapac/memory-x"]       # Automatically generate `memory.x` file using [`stm32-metapac`](https://docs.rs/stm32-metapac/)
+rt = ["stm32-metapac/rt"]       ## Enable `stm32-metapac`'s `rt` feature
+low-power = ["port/low-power"]
+delay_idle = []
+GPIOC = []
+GPIOA = []
+
+OS_EVENT_EN = []        ## this feature will be set in build.rs
+OS_EVENT_NAME_EN = []       ## this feature will be set in build.rs
+OS_SCHED_LOCK_EN = []
+OS_TIME_DLY_HMSM_EN = []
+OS_TASK_CHANGE_PRIO_EN = []
+OS_TASK_DEL_EN = []
+OS_PRIO_LESS_THAN_64 = ["cfg/OS_PRIO_LESS_THAN_64"]
+OS_PRIO_LESS_THAN_256 = ["cfg/OS_PRIO_LESS_THAN_256"]
+OS_MEM_EN = []
+OS_MAX_MEM_PART_EN = []
+OS_MBOX_EN = []
+OS_TASK_STAT_EN = []
+OS_MEM_NAME_EN = []
+OS_MUTEX_EN = []
+OS_Q_EN = []
+OS_SEM_EN = []
+OS_TASK_CREATE_EXT_EN = []
+OS_TASK_PROFILE_EN = []
+OS_TASK_NAME_EN = []
+OS_SAFETY_CRITICAL = []
+OS_ARG_CHK_EN = []      ## Enable (1) or Disable (0) argument checking
+OS_MAX_QS = []
+OS_TASK_REG_TBL_SIZE = ["cfg/OS_TASK_REG_TBL_SIZE"]
+OS_TASK_STAT_STK_CHK_EN = []
+OS_MAX_MEM_PART=[]
+OS_FLAG_EN=[]
+OS_MAX_FLAGS=[]
+OS_TMR_EN=[]
+OS_CPU_HOOKS_EN=[]
+OS_DEBUG_EN=[]
+OS_TIME_GET_SET_EN=["cfg/OS_TIME_GET_SET_EN"]
+OS_SAFETY_CRITICAL_IEC61508=[]
+OS_STACK_LESS_THAN_64=[]
+OS_STACK_LESS_THAN_256=[]
+OS_EVENT_MULTI_EN=[]
+
+# std = []
+# host = []
+atomics = []                 ## use hardware atomics from core::sync::atomic
+# xip = []                     ## enable optimizations for execute in place
+
+time_driver_tim1=[]
+time_driver_tim2=[]
+time_driver_tim3=["port/time_driver_tim3"]
+time_driver_tim4=[]
+time_driver_tim5=[]
+time_driver_tim8=[]
+time_driver_tim9=[]
+time_driver_tim12=[]
+time_driver_tim15=[]
+time_driver_tim20=[]
+time_driver_tim21=[]
+time_driver_tim22=[]
+time_driver_tim23=[]
+time_driver_tim24=[]
+
+stm32f401re = ["stm32-metapac/stm32f401re"]

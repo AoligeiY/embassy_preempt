@@ -1,0 +1,42 @@
+[package]
+name = "port"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cortex-m = { version = "0.7"}
+cortex-m-rt = { version = "0.7", features = ["device"]}
+cortex-m-semihosting = "0.5.0"
+
+critical-section = { version = "1.1",features=["restore-state-bool"]}
+stm32-metapac = { git = "https://github.com/embassy-rs/stm32-data-generated", tag = "stm32-data-e0cfd165fd8fffaa0df66a35eeca83b228496645", features = ["metadata"]}
+
+defmt = { version = "0.3", optional = true}
+defmt-rtt = { version = "0.4", optional = true}
+panic-probe = { version = "0.3", features = ["print-defmt"], optional = true}
+
+cfg = { path = "../cfg" }
+app = { path = "../app" ,features = ["stm32f401re"]}
+
+[features]
+default = ["time_driver_tim3","stm32f401re","alarm_test"]
+stm32f401re = [ "stm32-metapac/stm32f401re" ]
+defmt = ["dep:defmt","panic-probe","defmt-rtt"]
+alarm_test = ["dep:defmt","panic-probe","defmt-rtt"]
+
+low-power = []
+
+time_driver_tim1 = []
+time_driver_tim2 = []
+time_driver_tim3 = []
+time_driver_tim4 = []
+time_driver_tim5 = []
+time_driver_tim8 = []
+time_driver_tim9 = []
+time_driver_tim12 = []
+time_driver_tim15 = []
+time_driver_tim20 = []
+time_driver_tim21 = []
+time_driver_tim22 = []
+time_driver_tim23 = []
+time_driver_tim24 = []

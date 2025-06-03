@@ -1,0 +1,128 @@
+[package]
+name = "cfg"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lazy_static = { version = "1.5.0", features = ["spin_no_std"]}
+cell = { path = "../cell" }
+
+[features]
+# lib.rs
+delay_idle = []
+# ucosii.rs
+OS_TASK_STAT_EN = []
+OS_PRIO_LESS_THAN_64 = []
+OS_PRIO_LESS_THAN_256 = []
+OS_EVENT_EN = []
+OS_EVENT_NAME_EN = []
+OS_MBOX_EN = []
+OS_MUTEX_EN = []
+OS_Q_EN = []
+OS_SEM_EN = []
+OS_TASK_CREATE_EXT_EN = []
+OS_TIME_GET_SET_EN = []
+OS_TASK_REG_TBL_SIZE = []
+
+# tick.rs
+# BEGIN TICKS
+## 1Hz Tick Rate
+tick-hz-1 = []
+## 2Hz Tick Rate
+tick-hz-2 = []
+## 4Hz Tick Rate
+tick-hz-4 = []
+## 8Hz Tick Rate
+tick-hz-8 = []
+## 10Hz Tick Rate
+tick-hz-10 = []
+## 16Hz Tick Rate
+tick-hz-16 = []
+## 32Hz Tick Rate
+tick-hz-32 = []
+## 64Hz Tick Rate
+tick-hz-64 = []
+## 100Hz Tick Rate
+tick-hz-100 = []
+## 128Hz Tick Rate
+tick-hz-128 = []
+## 256Hz Tick Rate
+tick-hz-256 = []
+## 512Hz Tick Rate
+tick-hz-512 = []
+## 1.0kHz Tick Rate
+tick-hz-1_000 = []
+## 1.024kHz Tick Rate
+tick-hz-1_024 = []
+## 2.0kHz Tick Rate
+tick-hz-2_000 = []
+## 2.048kHz Tick Rate
+tick-hz-2_048 = []
+## 4.0kHz Tick Rate
+tick-hz-4_000 = []
+## 4.096kHz Tick Rate
+tick-hz-4_096 = []
+## 8.0kHz Tick Rate
+tick-hz-8_000 = []
+## 8.192kHz Tick Rate
+tick-hz-8_192 = []
+## 10.0kHz Tick Rate
+tick-hz-10_000 = []
+## 16.0kHz Tick Rate
+tick-hz-16_000 = []
+## 16.384kHz Tick Rate
+tick-hz-16_384 = []
+## 20.0kHz Tick Rate
+tick-hz-20_000 = []
+## 32.0kHz Tick Rate
+tick-hz-32_000 = []
+## 32.768kHz Tick Rate
+tick-hz-32_768 = []
+## 40.0kHz Tick Rate
+tick-hz-40_000 = []
+## 64.0kHz Tick Rate
+tick-hz-64_000 = []
+## 65.536kHz Tick Rate
+tick-hz-65_536 = []
+## 80.0kHz Tick Rate
+tick-hz-80_000 = []
+## 100.0kHz Tick Rate
+tick-hz-100_000 = []
+## 128.0kHz Tick Rate
+tick-hz-128_000 = []
+## 131.072kHz Tick Rate
+tick-hz-131_072 = []
+## 160.0kHz Tick Rate
+tick-hz-160_000 = []
+## 256.0kHz Tick Rate
+tick-hz-256_000 = []
+## 262.144kHz Tick Rate
+tick-hz-262_144 = []
+## 320.0kHz Tick Rate
+tick-hz-320_000 = []
+## 512.0kHz Tick Rate
+tick-hz-512_000 = []
+## 524.288kHz Tick Rate
+tick-hz-524_288 = []
+## 640.0kHz Tick Rate
+tick-hz-640_000 = []
+## 1.0MHz Tick Rate
+tick-hz-1_000_000 = []
+## 1.024MHz Tick Rate
+tick-hz-1_024_000 = []
+## 1.048576MHz Tick Rate
+tick-hz-1_048_576 = []
+## 1.28MHz Tick Rate
+tick-hz-1_280_000 = []
+## 2.0MHz Tick Rate
+tick-hz-2_000_000 = []
+## 2.048MHz Tick Rate
+tick-hz-2_048_000 = []
+## 2.097152MHz Tick Rate
+tick-hz-2_097_152 = []
+## 2.56MHz Tick Rate
+tick-hz-2_560_000 = []
+## 3.0MHz Tick Rate
+tick-hz-3_000_000 = []
+## 4.0MHz Tick Rate
+tick-hz-4_000_000 = []
