@@ -176,6 +176,13 @@ impl EventPool {
     }
     /// init the event table
     pub unsafe fn init(&self) {
+        critical_section::with(|cs| {
+            for i in 0..OS_MAX_EVENTS {
+                if self.OSEventTbl.get_mut()[i].ptr.is_none() {
+                    self.OSEventTbl.get_mut()[i] = EventPool::claim(cs);
+                }
+            }
+        });
         let mut pevent1: OS_EVENT_REF;
         let mut pevent2: OS_EVENT_REF;
         for i in 0..OS_MAX_EVENTS-1 {
@@ -188,7 +195,7 @@ impl EventPool {
         pevent1.OSEventType = OS_EVENT_TYPE::UNUSED;
         pevent1.OSEventPtr.set(None);
 
-        self.OSEventFreeList.set(Some(self.OSEventTbl.get_unmut()[0]));
+        self.OSEventFreeList.set(Some(self.OSEventTbl.get_mut()[0]));
     }
     /// alloc a new event from the event pool
     pub fn alloc(&self) -> Option<OS_EVENT_REF> {
@@ -278,6 +285,7 @@ pub fn OS_EventTaskWait(mut pevent: OS_EVENT_REF) {
     let executor = GlobalSyncExecutor.as_ref().unwrap();
     let task = executor.OSTCBCur.get_unmut();
     unsafe {
+        #[cfg(feature = "OS_EVENT_EN")]
         // store ptr to ECB in TCB
         task.OSTCBEventPtr.set(Some(pevent));
         // task no longer ready
@@ -298,6 +306,7 @@ pub fn OS_EventTaskRemove(ptcb: OS_TCB_REF, mut pevent: OS_EVENT_REF) {
         pevent.OSEventGrp &= !ptcb.OSTCBY;
     }
     unsafe {
+        #[cfg(feature = "OS_EVENT_EN")]
         ptcb.OSTCBEventPtr.set(None);
     }
 }

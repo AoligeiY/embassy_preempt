@@ -143,12 +143,9 @@ pub fn OSSemPend(mut pevent: OS_EVENT_REF, timeout: INT16U) -> OS_ERR_STATE {
             return OS_ERR_STATE::OS_ERR_NONE;
         }
 
-        // let executor = GlobalSyncExecutor.as_ref().unwrap();
-        // let task = executor.OSTCBCur.get_unmut();
-
         // suspend task until event or timeout occurs
         OS_EventTaskWait(pevent);
-
+        // exiting the ready queue, releasing control of the CPU
         OSTimeDly(timeout as u64);
 
         return OS_ERR_STATE::OS_ERR_NONE;

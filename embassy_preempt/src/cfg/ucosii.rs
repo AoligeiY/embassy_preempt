@@ -29,8 +29,7 @@
 */
 
 use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU8};
-use crate::cfg::*;
-// use crate::port::*;
+use super::*;
 
 /*
 *********************************************************************************************************
@@ -578,16 +577,16 @@ pub struct OS_MBOX_DATA {
 
 // unsafe impl Sync for OS_MEM {}
 
-/// the data of the os mem part
-#[allow(unused)]
-pub struct OS_MEM_DATA {
-    OSAddr: PTR,       /* Ptr to the beginning address of the memory partition    */
-    OSFreeList: PTR,   /* Ptr to the beginning of the free list of memory blocks  */
-    OSBlkSize: INT32U, /* Size (in bytes) of each memory block                    */
-    OSNBlks: INT32U,   /* Total number of blocks in the partition                 */
-    OSNFree: INT32U,   /* Number of memory blocks free                            */
-    OSNUsed: INT32U,   /* Number of memory blocks used                            */
-}
+// /// the data of the os mem part
+// #[allow(unused)]
+// pub struct OS_MEM_DATA {
+//     OSAddr: PTR,       /* Ptr to the beginning address of the memory partition    */
+//     OSFreeList: PTR,   /* Ptr to the beginning of the free list of memory blocks  */
+//     OSBlkSize: INT32U, /* Size (in bytes) of each memory block                    */
+//     OSNBlks: INT32U,   /* Total number of blocks in the partition                 */
+//     OSNFree: INT32U,   /* Number of memory blocks free                            */
+//     OSNUsed: INT32U,   /* Number of memory blocks used                            */
+// }
 
 /*
 *********************************************************************************************************
@@ -697,25 +696,6 @@ pub struct OS_STK_DATA {
 *                this part contains the static vars instead of const which need to be changed
 *********************************************************************************************************
 */
-// #[cfg(all(feature = "OS_MEM_EN", feature = "OS_MAX_MEM_PART_EN"))]
-// #[allow(non_upper_case_globals)]
-// /// the free memory partition table list
-// pub static mut OSMemFreeList: Addr = core::ptr::null_mut();
-// #[cfg(all(feature = "OS_MEM_EN", feature = "OS_MAX_MEM_PART_EN"))]
-// const OS_MAX_MEM_PART: INT32U = env!("OS_MAX_MEM_PART").parse::<INT32U>().unwrap();
-// #[cfg(all(feature = "OS_MEM_EN", feature = "OS_MAX_MEM_PART_EN"))]
-// #[allow(non_upper_case_globals)]
-// #[allow(unused)]
-// /// the memory partition table
-// static OSMemTbl: [OS_MEM; OS_MAX_MEM_PART as usize] = [OS_MEM {
-//     OSMemAddr: core::ptr::null_mut(),
-//     OSMemFreeList: core::ptr::null_mut(),
-//     OSMemNFree: 0,
-//     OSMemNBlks: 0,
-//     OSMemBlkSize: 0,
-//     #[cfg(feature = "OS_MEM_NAME_EN")]
-//     OSMemName: "",
-// }; OS_MAX_MEM_PART as usize];
 
 /// Current value of system time (in ticks)
 #[cfg(feature = "OS_TIME_GET_SET_EN")]
@@ -742,33 +722,3 @@ pub static OSIdleCtr: AtomicU32 = AtomicU32::new(0);
 /// Next available Task register ID
 #[cfg(feature = "OS_TASK_REG_TBL_SIZE")]
 pub static OSTaskRegNextAvailID: AtomicU8 = AtomicU8::new(0);
-
-// Ready list group
-// fix by liam: we put it into the executor
-// #[cfg(feature = "OS_PRIO_LESS_THAN_64")]
-// pub static OSRdyGrp: AtomicU8 = AtomicU8::new(0);
-#[cfg(feature = "OS_PRIO_LESS_THAN_256")]
-// pub static OSRdyGrp: AtomicU16 = AtomicU16::new(0);
-
-/// Table of tasks which are ready to run
-/// the table will be used in the scheduler(executor)
-/// besides, we use the RefCell to do borrowing check at run time
-pub static OSRdyTbl: Mutex<RefCell<[OS_PRIO; OS_RDY_TBL_SIZE]>> = Mutex::new(RefCell::new([0; OS_RDY_TBL_SIZE]));
-
-// /// by noah: the ref of Table of TCBs. TCBs will be stored in Arena in executor.rs
-// pub static OSTCBTbl:TaskPoolRef=TaskPoolRef::new();
-
-// Priority of current task
-// fix by liam: we change this to executor
-// pub static OSPrioCur: AtomicU8 = AtomicU8::new(0);
-
-// /// Priority of highest priority task
-// pub static OSPrioHighRdy: AtomicU8 = AtomicU8::new(0);
-
-// lazy_static! {
-// /// we need the lazy static so that we can call default to get the default value
-//     /// Pointer to currently running TCB
-//     pub static ref OSTCBCur:Mutex<RefCell<OS_TCB_REF>>=Mutex::new(RefCell::new(OS_TCB_REF::default()));
-//     /// Pointer to highest priority TCB R-to-R
-//     pub static ref OSTCBHighRdy:Mutex<RefCell<OS_TCB_REF>>=Mutex::new(RefCell::new(OS_TCB_REF::default()));
-// }

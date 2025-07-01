@@ -15,6 +15,9 @@
 //! Raw task storage and pool.
 //! The executor for the uC/OS-II RTOS.
 
+#[cfg(any(feature = "defmt",feature = "alarm_test"))]
+use defmt_rtt as _;
+
 #[cfg_attr(feature = "cortex_m", path = "./state_atomics_arm.rs")]
 pub mod state;
 pub mod timer_queue;

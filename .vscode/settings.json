@@ -10,7 +10,13 @@
   "rust-analyzer.cargo.noDefaultFeatures": false,
   "rust-analyzer.showUnlinkedFileNotification": false,
   "rust-analyzer.linkedProjects": [
-    "embassy_preempt/Cargo.toml"
+    "embassy_preempt/Cargo.toml",
+    // "modules/app/Cargo.toml",
+    // "modules/cell/Cargo.toml",
+    // "modules/cfg/Cargo.toml",
+    // "modules/event/Cargo.toml",
+    // "modules/executor/Cargo.toml",
+    // "modules/port/Cargo.toml",
   ],
   "rust-analyzer.cargo.features": [
     "stm32f401re"

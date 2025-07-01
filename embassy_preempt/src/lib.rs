@@ -22,58 +22,27 @@
 ********************************************************************************************************************************************
 */
 #[cfg(any(feature = "defmt",feature = "alarm_test"))]
-use defmt_rtt as _; 
+use defmt_rtt as _;
 // global logger
 pub extern crate alloc;
-// /// the mod of uC/OS-II kernel
-// pub mod os_core;
 
-// /// the mod of flag of uC/OS-II kernel
-// pub mod os_flag;
-// /// the mod of mailbox of uC/OS-II kernel
-// pub mod os_mbox;
-// /// the mod of memory management of uC/OS-II kernel
-// pub mod os_mem;
-// /// the mod of mutex of uC/OS-II kernel
-// pub mod os_mutex;
-// /// the mod of queue of uC/OS-II kernel
-// pub mod os_q;
-
-// /// the mod of task of uC/OS-II kernel
-// pub mod os_task;
-// /// the stk allocator
-// pub mod arena;
+/// the apps
+pub mod app;
 /// need to import port here
 pub mod cfg;
 /// the async scheduler(executor) of rust uC
 pub mod executor;
-// /// the mod of semaphore of uC/OS-II kernel
-// pub mod os_sem;
-// /// the task interface of uC/OS-II kernel
-// pub mod os_task;
 /// the mod of time of uC/OS-II kernel
 pub mod os_time;
-/// the mod of timer of uC/OS-II kernel
-pub mod os_tmr;
 /// need to import port here
 pub mod port;
-// /// the mod which define the data structure of uC/OS-II kernel
-// pub mod ucosii;
+/// the mod of event of uC/OS-II kernel
+pub mod event;
+
 /// the the macro of atomic operation
 #[macro_use]
 /// the atomic_macros module is used to define atomic operations
 pub mod atomic_macros;
-/// the mod of event of uC/OS-II kernel
-pub mod event;
-// mod heap;
-// /// the mod of mem management of uC/OS-II kernel
-// pub mod mem;
-
-/// the apps
-pub mod app;
-/// about rust's Cell 
-// mod cell;
-
 
 // This must go last, so that it sees all the impl_foo! macros defined earlier.
 // pub(crate) mod _generated {
@@ -90,14 +59,3 @@ pub mod app;
 pub use stm32_metapac as pac;
 #[cfg(not(feature = "unstable-pac"))]
 pub(crate) use stm32_metapac as pac;
-
-/*
-********************************************************************************************************************************************
-*                                                               type define
-********************************************************************************************************************************************
-*/
-// /// address is a raw pointer
-// pub type Addr = *mut core::ffi::c_void;
-// /// Unsigned  8 bit quantity
-// pub type VoidPtr = *mut core::ffi::c_void;
-// pub type PRIO = u8;

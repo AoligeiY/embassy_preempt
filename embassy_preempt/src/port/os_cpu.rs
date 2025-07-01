@@ -98,12 +98,8 @@ fn PendSV() {
     
     let tcb_cur = global_executor.OSTCBCur.get_mut();
 
+    // see if it is a thread
     if !*tcb_cur.is_in_thread_poll.get_unmut() {
-        // this situation is in interrupt poll
-        #[cfg(feature = "defmt")]
-        trace!("need to save the context");
-        // we need to give the current task the old_stk to store the context
-        // first we will store the remaining context to the old_stk
         let old_stk_ptr: *mut usize;
         unsafe {
             asm!(
@@ -112,32 +108,17 @@ fn PendSV() {
                 options(nostack, preserves_flags),
             )
         }
-        // then as we have stored the context, we need to update the old_stk's top
         old_stk.STK_REF = NonNull::new(old_stk_ptr as *mut OS_STK).unwrap();
-        #[cfg(feature = "alarm_test")]
-        info!("in pendsv, the old stk ptr is {:?}, this stack pointer is saved", old_stk_ptr);
         tcb_cur.set_stk(old_stk);
     } else if old_stk.HEAP_REF != stk_heap_ref {
-        // the situation is in poll
-        #[cfg(feature = "alarm_test")]
-        info!("in pendsv, the old stk ptr is {:?}, and stk_heap_ref is {:?}, this stack will be drop", old_stk.HEAP_REF.as_ptr(), stk_heap_ref.as_ptr());
-        #[cfg(feature = "alarm_test")]
-        info!("drop the old stack");
         drop(old_stk);
     } else {
-        // #[cfg(feature = "alarm_test")]
-        // info!("mem::forget the old stack");
         mem::forget(old_stk);
     }
-    // set the current task to be the highrdy
     unsafe {
         global_executor.set_cur_highrdy();
-        // set the current task's is_in_thread_poll to true
         tcb_cur.is_in_thread_poll.set(true);
     }
-    #[cfg(feature = "defmt")]
-    info!("trying to restore, the new stack pointer is {:?}", program_stk_ptr);
-    // we will reset the msp to the original
     let msp_stk = INTERRUPT_STACK.get().STK_REF.as_ptr();
     stack_pin_low();
     unsafe {
